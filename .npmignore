@@ -1,0 +1,22 @@
+# Source TypeScript (dist/ is published)
+*.ts
+*.tsx
+!dist/**
+tsconfig.json
+
+# Development files
+*.tgz
+*.log
+.env
+.env.*
+node_modules/
+
+# Editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

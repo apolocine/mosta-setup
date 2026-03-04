@@ -1,0 +1,63 @@
+// @mosta/setup — Types
+// Author: Dr Hamid MADANI drmdh@msn.com
+
+export type DialectType =
+  | 'mongodb' | 'sqlite' | 'postgres' | 'mysql' | 'mariadb'
+  | 'oracle' | 'mssql' | 'cockroachdb' | 'db2' | 'hana'
+  | 'hsqldb' | 'spanner' | 'sybase'
+
+export interface DialectInfo {
+  name: string
+  icon: string
+  defaultPort: number
+  defaultUser: string
+  defaultHost: string
+  driverHint: string | null
+  requiresAuth: boolean
+  category: 'document' | 'file' | 'sql' | 'enterprise' | 'distributed' | 'legacy'
+}
+
+export interface DbConfig {
+  host: string
+  port: number
+  name: string
+  user: string
+  password: string
+}
+
+export interface InstallConfig {
+  dialect: DialectType
+  db: DbConfig
+  admin: { email: string; password: string; firstName: string; lastName: string }
+  seed?: SeedOptions
+}
+
+export interface SeedOptions {
+  [key: string]: boolean
+}
+
+export interface SeedDefinition {
+  key: string
+  label: string
+  description: string
+  icon?: string
+  default?: boolean
+  run: (repos: any) => Promise<void>
+}
+
+export interface MostaSetupConfig {
+  /** Application name (shown in wizard) */
+  appName: string
+  /** Default port (default: 3000) */
+  defaultPort?: number
+  /** Enabled dialects (default: all 13) */
+  enabledDialects?: DialectType[]
+  /** Callback to seed RBAC (permissions, roles, categories) */
+  seedRBAC?: () => Promise<void>
+  /** Create first admin user — called with hashed password */
+  createAdmin?: (admin: { email: string; hashedPassword: string; firstName: string; lastName: string }) => Promise<void>
+  /** Optional seeds shown in the wizard */
+  optionalSeeds?: SeedDefinition[]
+  /** Extra env vars to write to .env.local */
+  extraEnvVars?: Record<string, string>
+}
