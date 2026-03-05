@@ -3,9 +3,8 @@
 //
 // Copy to: src/app/api/setup/test-db/route.ts
 
-import { NextResponse } from 'next/server'
 import { testDbConnection } from '../lib/db-test'
-import type { DialectType } from '../types'
+import type { DialectType } from '../types/index'
 
 type NeedsSetupFn = () => Promise<boolean>
 
@@ -15,14 +14,14 @@ type NeedsSetupFn = () => Promise<boolean>
 export function createTestDbHandler(needsSetup: NeedsSetupFn) {
   async function POST(req: Request) {
     if (!(await needsSetup())) {
-      return NextResponse.json({ error: 'Already installed' }, { status: 400 })
+      return Response.json({ error: 'Already installed' }, { status: 400 })
     }
 
     const body = await req.json()
     const { dialect, host, port, name, user, password } = body
 
     if (!dialect || !name) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return Response.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     const result = await testDbConnection({
@@ -34,7 +33,7 @@ export function createTestDbHandler(needsSetup: NeedsSetupFn) {
       password: password || '',
     })
 
-    return NextResponse.json(result)
+    return Response.json(result)
   }
 
   return { POST }

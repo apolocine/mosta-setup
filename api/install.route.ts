@@ -3,9 +3,8 @@
 //
 // Copy to: src/app/api/setup/install/route.ts
 
-import { NextResponse } from 'next/server'
 import { runInstall } from '../lib/setup'
-import type { InstallConfig, MostaSetupConfig } from '../types'
+import type { InstallConfig, MostaSetupConfig } from '../types/index'
 
 type NeedsSetupFn = () => Promise<boolean>
 
@@ -18,12 +17,12 @@ export function createInstallHandler(
 ) {
   async function POST(req: Request) {
     if (!(await needsSetup())) {
-      return NextResponse.json({ error: 'Already installed' }, { status: 400 })
+      return Response.json({ error: 'Already installed' }, { status: 400 })
     }
 
     const body: InstallConfig = await req.json()
     const result = await runInstall(body, setupConfig)
-    return NextResponse.json(result)
+    return Response.json(result)
   }
 
   return { POST }

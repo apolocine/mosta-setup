@@ -2,7 +2,7 @@
 // Author: Dr Hamid MADANI drmdh@msn.com
 import { composeDbUri } from './compose-uri'
 import { writeEnvLocal } from './env-writer'
-import type { InstallConfig, MostaSetupConfig } from '../types'
+import type { InstallConfig, MostaSetupConfig } from '../types/index'
 
 /**
  * Check if the app needs initial setup (0 users in DB).
@@ -34,10 +34,14 @@ export async function runInstall(
   try {
     // 1. Compose URI and write .env.local
     const uri = composeDbUri(installConfig.dialect, installConfig.db)
+    const extraVars = { ...setupConfig.extraEnvVars }
+    if (installConfig.modules?.length) {
+      extraVars['MOSTAJS_MODULES'] = installConfig.modules.join(',')
+    }
     const needsRestart = await writeEnvLocal({
       dialect: installConfig.dialect,
       uri,
-      extraVars: setupConfig.extraEnvVars,
+      extraVars,
       port: setupConfig.defaultPort,
     })
 

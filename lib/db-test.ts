@@ -1,6 +1,6 @@
 // @mosta/setup — Database connection test (ephemeral, never touches global connection)
 // Author: Dr Hamid MADANI drmdh@msn.com
-import type { DialectType, DbConfig } from '../types'
+import type { DialectType, DbConfig } from '../types/index'
 import { composeDbUri } from './compose-uri'
 
 /**

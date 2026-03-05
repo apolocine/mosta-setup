@@ -30,7 +30,10 @@ export interface InstallConfig {
   db: DbConfig
   admin: { email: string; password: string; firstName: string; lastName: string }
   seed?: SeedOptions
+  modules?: string[]
 }
+
+export type { ModuleDefinition } from '../data/module-definitions'
 
 export interface SeedOptions {
   [key: string]: boolean
@@ -50,8 +53,6 @@ export interface MostaSetupConfig {
   appName: string
   /** Default port (default: 3000) */
   defaultPort?: number
-  /** Enabled dialects (default: all 13) */
-  enabledDialects?: DialectType[]
   /** Callback to seed RBAC (permissions, roles, categories) */
   seedRBAC?: () => Promise<void>
   /** Create first admin user — called with hashed password */

@@ -3,8 +3,6 @@
 //
 // Copy to: src/app/api/setup/status/route.ts
 
-import { NextResponse } from 'next/server'
-
 type NeedsSetupFn = () => Promise<boolean>
 
 /**
@@ -13,7 +11,7 @@ type NeedsSetupFn = () => Promise<boolean>
 export function createStatusHandler(needsSetup: NeedsSetupFn) {
   async function GET() {
     const needed = await needsSetup()
-    return NextResponse.json({ needsSetup: needed })
+    return Response.json({ needsSetup: needed })
   }
 
   return { GET }

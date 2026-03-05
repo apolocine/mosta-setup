@@ -1,6 +1,6 @@
 // @mosta/setup — Dialect metadata for the 13 supported databases
 // Author: Dr Hamid MADANI drmdh@msn.com
-import type { DialectType, DialectInfo } from '../types'
+import type { DialectType, DialectInfo } from '../types/index'
 
 export const DIALECT_INFO: Record<DialectType, DialectInfo> = {
   mongodb: {
