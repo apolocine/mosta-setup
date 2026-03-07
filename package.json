@@ -32,6 +32,11 @@
       "types": "./dist/types/index.d.ts",
       "import": "./dist/types/index.js",
       "default": "./dist/types/index.js"
+    },
+    "./lib/menu": {
+      "types": "./dist/lib/menu.d.ts",
+      "import": "./dist/lib/menu.js",
+      "default": "./dist/lib/menu.js"
     }
   },
   "files": [
