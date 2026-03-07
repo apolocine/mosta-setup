@@ -21,6 +21,9 @@ export { createStatusHandler } from './api/status.route'
 export { createDetectModulesHandler } from './api/detect-modules.route'
 export { createInstallModulesHandler } from './api/install-modules.route'
 
+// Menu contribution
+export { setupMenuContribution } from './lib/menu'
+
 // Types
 export type {
   DialectType,

@@ -752,16 +752,67 @@ spanner://projects/my-project            (Cloud Spanner)
 
 ## 6. Systeme de modules
 
+### Catalogue des 7 modules connus
+
+| Module | Package | Requis | Depend de | Standalone | Description |
+|--------|---------|--------|-----------|------------|-------------|
+| **orm** | `@mostajs/orm` | oui | — | — | ORM multi-dialecte (13 SGBD), pattern Hibernate |
+| **auth** | `@mostajs/auth` | oui | orm | non | NextAuth, sessions, hashage mots de passe |
+| **audit** | `@mostajs/audit` | non | orm | non | Journalisation des actions, tracabilite |
+| **rbac** | `@mostajs/rbac` | non | auth, audit | non | Roles, permissions, matrice RBAC |
+| **settings** | `@mostajs/settings` | non | orm | non | Parametres cle-valeur, formulaire auto, provider React |
+| **face** | `@mostajs/face` | non | **aucune** | **oui** | Detection de visage, descripteurs, matching 1:N |
+| **setup** | `@mostajs/setup` | oui | orm | non | Wizard d'installation, test DB, seed runner |
+
+### Module standalone : @mostajs/face
+
+`@mostajs/face` est **100% independant** — il n'importe aucun package `@mostajs/*` et peut etre utilise dans n'importe quelle application React >= 18 sans `@mostajs/orm` ni base de donnees.
+
+**Dependance unique** : `@vladmandic/face-api` (reconnaissance faciale TensorFlow.js)
+
+```bash
+npm install @mostajs/face
+```
+
+```tsx
+import { useCamera, useFaceDetection, compareFaces } from '@mostajs/face'
+
+// Hooks React pour camera et detection
+const { videoRef, start, stop } = useCamera()
+const { detect, result } = useFaceDetection()
+
+// API bas niveau
+import { loadModels, detectFace, extractDescriptor } from '@mostajs/face'
+import { findMatch, descriptorToArray, arrayToDescriptor } from '@mostajs/face'
+```
+
+Exports : `loadModels`, `detectFace`, `detectAllFaces`, `extractDescriptor`, `compareFaces`, `findMatch`, `findAllMatches`, `descriptorToArray`, `arrayToDescriptor`, `isValidDescriptor`, `drawDetection`, `useCamera`, `useFaceDetection`.
+
+### Graphe de dependances
+
+```
+                    ┌──────────┐
+                    │ orm (R)  │  R = requis
+                    └────┬─────┘
+                ┌────────┼────────┬──────────┐
+                v        v        v          v
+          ┌──────────┐ ┌──────┐ ┌──────────┐ ┌───────┐
+          │ auth (R) │ │audit │ │ settings │ │setup(R)│
+          └────┬─────┘ └──┬───┘ └──────────┘ └───────┘
+               │          │
+               v          v
+          ┌──────────────────┐
+          │       rbac       │
+          └──────────────────┘
+
+  ┌──────────────────────────┐
+  │   face (100% standalone) │  ← aucune dependance @mostajs
+  └──────────────────────────┘
+```
+
 ### Liste statique vs decouverte dynamique
 
-Le package maintient une **liste statique** de 7 modules connus avec metadata riches :
-
-```
-orm (requis) → auth (requis) → rbac → settings
-                             → audit
-face (optionnel, sans dependance)
-setup (requis)
-```
+Le package maintient une **liste statique** des 7 modules ci-dessus avec metadata riches (required, dependsOn, icon, description).
 
 Au runtime, `GET /api/setup/detect-modules` interroge aussi **npm** (`npm search @mostajs --json`) pour trouver des packages publies apres le deploiement. Ces modules decouverts sont ajoutes avec `discovered: true` et l'icone 📦.
 
@@ -773,15 +824,19 @@ import { resolveModuleDependencies } from '@mostajs/setup'
 resolveModuleDependencies(['rbac'])
 // → ['rbac', 'auth', 'audit', 'orm', 'setup']
 // (rbac depend de auth + audit, auth depend de orm, setup est requis)
+
+resolveModuleDependencies(['face'])
+// → ['face', 'orm', 'auth', 'setup']
+// (face n'a pas de dependance @mostajs, mais orm/auth/setup sont requis)
 ```
 
 ### Installation hybride (local + npm)
 
 Le handler `install-modules` utilise une strategie hybride :
 
-1. **Local** : si `packages/mosta-xxx/` existe → `npm install file:./packages/mosta-xxx`
-2. **npm registry** : sinon → `npm install @mostajs/xxx`
-3. **Skip** : si deja dans `node_modules/@mostajs/xxx` → pas de `npm install`
+1. **Skip** : si deja dans `node_modules/@mostajs/xxx` → pas de `npm install` (evite hot-reload)
+2. **Local** : si `packages/mosta-xxx/` existe → `npm install file:./packages/mosta-xxx`
+3. **npm registry** : sinon → `npm install @mostajs/xxx`
 
 Cela evite les 404 npm pour les packages non encore publies et les hot-reloads Next.js inutiles.
 
@@ -925,12 +980,14 @@ Puis recompilez : `cd packages/mosta-setup && npx tsc`
 
 ## Related Packages
 
-- [@mostajs/orm](https://www.npmjs.com/package/@mostajs/orm) — Multi-dialect ORM (required)
-- [@mostajs/auth](https://www.npmjs.com/package/@mostajs/auth) — Authentication
-- [@mostajs/audit](https://www.npmjs.com/package/@mostajs/audit) — Audit logging
-- [@mostajs/rbac](https://www.npmjs.com/package/@mostajs/rbac) — Roles & Permissions
-- [@mostajs/settings](https://www.npmjs.com/package/@mostajs/settings) — Key-value settings
-- [@mostajs/face](https://www.npmjs.com/package/@mostajs/face) — Facial recognition
+| Package | Depend de orm | Standalone | Description |
+|---------|:---:|:---:|-------------|
+| [@mostajs/orm](https://www.npmjs.com/package/@mostajs/orm) | — | — | Multi-dialect ORM, 13 SGBD (requis) |
+| [@mostajs/auth](https://www.npmjs.com/package/@mostajs/auth) | oui | non | Authentication NextAuth, sessions |
+| [@mostajs/audit](https://www.npmjs.com/package/@mostajs/audit) | oui | non | Audit logging, tracabilite |
+| [@mostajs/rbac](https://www.npmjs.com/package/@mostajs/rbac) | oui | non | Roles & Permissions RBAC |
+| [@mostajs/settings](https://www.npmjs.com/package/@mostajs/settings) | oui | non | Parametres cle-valeur |
+| [@mostajs/face](https://www.npmjs.com/package/@mostajs/face) | **non** | **oui** | Reconnaissance faciale (independant) |
 
 ## License
 
