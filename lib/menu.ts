@@ -1,7 +1,7 @@
 // @mostajs/setup — Menu contribution
 // Author: Dr Hamid MADANI drmdh@msn.com
 
-import { Wrench } from 'lucide-react'
+import { Wrench, Settings2 } from 'lucide-react'
 import type { ModuleMenuContribution } from '@mostajs/menu'
 
 export const setupMenuContribution: ModuleMenuContribution = {
@@ -14,6 +14,12 @@ export const setupMenuContribution: ModuleMenuContribution = {
       href: '/setup',
       icon: Wrench,
       permission: 'admin:access',
+    },
+    {
+      label: 'setup.reconfig.title',
+      href: '/dashboard/settings/reconfig',
+      icon: Settings2,
+      permission: 'admin:settings',
     },
   ],
 }

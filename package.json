@@ -37,6 +37,16 @@
       "types": "./dist/lib/menu.d.ts",
       "import": "./dist/lib/menu.js",
       "default": "./dist/lib/menu.js"
+    },
+    "./components/ReconfigPanel": {
+      "types": "./dist/components/ReconfigPanel.d.ts",
+      "import": "./dist/components/ReconfigPanel.js",
+      "default": "./dist/components/ReconfigPanel.js"
+    },
+    "./api/reconfig": {
+      "types": "./dist/api/reconfig.route.d.ts",
+      "import": "./dist/api/reconfig.route.js",
+      "default": "./dist/api/reconfig.route.js"
     }
   },
   "files": [
@@ -73,13 +83,18 @@
     "@mostajs/menu": "^1.0.2",
     "@types/bcryptjs": "^2.4.0",
     "@types/node": "^25.3.3",
+    "@types/react": "^19.2.14",
     "typescript": "^5.6.0"
   },
   "peerDependencies": {
-    "@mostajs/menu": ">=1.0.2"
+    "@mostajs/menu": ">=1.0.2",
+    "react": ">=18.0.0"
   },
   "peerDependenciesMeta": {
     "@mostajs/menu": {
+      "optional": true
+    },
+    "react": {
       "optional": true
     }
   }
