@@ -24,7 +24,8 @@ Part of the [@mosta suite](https://mostajs.dev).
 5. [Les 13 dialectes supportes](#5-les-13-dialectes-supportes)
 6. [Systeme de modules](#6-systeme-de-modules)
 7. [Exemples avances](#7-exemples-avances)
-8. [FAQ / Troubleshooting](#8-faq--troubleshooting)
+8. [Reconfiguration (post-installation)](#8-reconfiguration-post-installation)
+9. [FAQ / Troubleshooting](#9-faq--troubleshooting)
 
 ---
 
@@ -56,7 +57,10 @@ npm install @mostajs/setup @mostajs/orm
 │   ├── test-db.route.ts         # Factory POST /api/setup/test-db
 │   ├── install.route.ts         # Factory POST /api/setup/install
 │   ├── detect-modules.route.ts  # Factory GET  /api/setup/detect-modules
-│   └── install-modules.route.ts # Factory POST /api/setup/install-modules
+│   ├── install-modules.route.ts # Factory POST /api/setup/install-modules
+│   └── reconfig.route.ts        # Factory GET+POST /api/setup/reconfig
+├── components/
+│   └── ReconfigPanel.tsx        # UI reconfiguration (modules + DB)
 ├── types/
 │   └── index.ts                 # Tous les types TypeScript
 └── index.ts                     # Barrel exports
@@ -922,7 +926,87 @@ const dialectChanged = await writeEnvLocal({
 
 ---
 
-## 8. FAQ / Troubleshooting
+## 8. Reconfiguration (post-installation)
+
+Apres l'installation initiale, le module fournit un **panneau de reconfiguration** permettant de :
+- Changer de base de donnees (dialecte, connexion, test)
+- Activer / desactiver des modules @mostajs
+- Optionnellement re-seeder la nouvelle base
+
+### Integration dans le projet hote
+
+Ce module exporte un **composant React** (`ReconfigPanel`) et une **factory API** (`createReconfigHandlers`),
+mais ne cree pas de pages Next.js. Le projet hote doit creer la route API et la page.
+
+#### 1. Route API
+
+**`src/app/api/setup/reconfig/route.ts`**
+```typescript
+import { createReconfigHandlers } from '@mostajs/setup/api/reconfig'
+
+const { GET, POST } = createReconfigHandlers()
+export { GET, POST }
+```
+
+#### 2. Page de reconfiguration
+
+**`src/app/dashboard/settings/reconfig/page.tsx`**
+```tsx
+'use client'
+import ReconfigPanel from '@mostajs/setup/components/ReconfigPanel'
+
+export default function ReconfigPage() {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Reconfiguration</h1>
+      <ReconfigPanel
+        apiEndpoint="/api/setup/reconfig"
+        detectEndpoint="/api/setup/detect-modules"
+        showSeedOption
+        onDbChanged={() => window.location.reload()}
+        onSeedRequested={async () => {
+          await fetch('/api/setup/install', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'seed-only' }),
+          })
+        }}
+      />
+    </div>
+  )
+}
+```
+
+#### 3. Menu dynamique
+
+Le module exporte `setupMenuContribution` qui declare la route `/dashboard/settings/reconfig`
+dans le groupe "Administration". Importez-le via le deep import :
+
+```tsx
+import { setupMenuContribution } from '@mostajs/setup/lib/menu'
+```
+
+#### 4. Props de ReconfigPanel
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `apiEndpoint` | `string` | URL de l'API reconfig (ex: `/api/setup/reconfig`) |
+| `detectEndpoint` | `string` | URL de l'API detect-modules (ex: `/api/setup/detect-modules`) |
+| `t` | `(key: string) => string` | Fonction de traduction (optionnel) |
+| `showSeedOption` | `boolean` | Afficher la checkbox "Re-seeder" lors d'un changement de DB |
+| `onDbChanged` | `() => void` | Callback apres changement de DB reussi |
+| `onModulesChanged` | `(modules: string[]) => void` | Callback apres maj des modules |
+| `onSeedRequested` | `() => Promise<void>` | Callback pour executer le seed |
+
+#### 5. Pourquoi le projet hote doit creer les pages ?
+
+Les modules `@mostajs/*` sont des **bibliotheques npm** (composants, hooks, utilitaires), pas des applications.
+Next.js App Router exige que les fichiers `page.tsx` soient dans le dossier `src/app/` du projet.
+Un package npm ne peut pas injecter de pages dans le routeur — c'est donc au projet hote de creer ces fichiers wrapper, meme s'ils ne font qu'importer et afficher un composant du module.
+
+---
+
+## 9. FAQ / Troubleshooting
 
 ### L'installation tourne en boucle (GET /setup se repete)
 
