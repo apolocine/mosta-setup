@@ -74,11 +74,51 @@ export function createUploadJarHandlers() {
         } catch { /* not a bridge */ }
       }
 
+      // Check HSQLDB server status
+      let hsqldbServer: { running: boolean; port: number; pid: number } | null = null
+      try {
+        const { existsSync, readdirSync, readFileSync } = await import('fs')
+        const { join } = await import('path')
+        const jarDir = process.env.MOSTA_JAR_DIR || join(process.cwd(), 'jar_files')
+        if (existsSync(jarDir)) {
+          const serverPidFiles = readdirSync(jarDir).filter((f: string) => f.startsWith('.hsqldb-server-') && f.endsWith('.pid'))
+          for (const file of serverPidFiles) {
+            const portMatch = file.match(/\.hsqldb-server-(\d+)\.pid/)
+            if (!portMatch) continue
+            const port = parseInt(portMatch[1])
+            const pidStr = readFileSync(join(jarDir, file), 'utf-8').trim()
+            const pid = parseInt(pidStr)
+            let alive = false
+            if (pid > 0) {
+              try { process.kill(pid, 0); alive = true } catch { /* dead */ }
+            }
+            if (alive) {
+              hsqldbServer = { running: true, port, pid }
+            } else {
+              // Clean stale PID file
+              try { (await import('fs')).unlinkSync(join(jarDir, file)) } catch { /* ignore */ }
+            }
+          }
+        }
+        // Also check port 9001 if no PID file found
+        if (!hsqldbServer) {
+          const { execSync } = await import('child_process')
+          try {
+            const out = execSync('fuser 9001/tcp 2>/dev/null', { encoding: 'utf-8' }).trim()
+            if (out) {
+              const pid = parseInt(out)
+              hsqldbServer = { running: true, port: 9001, pid: isNaN(pid) ? 0 : pid }
+            }
+          } catch { /* not running */ }
+        }
+      } catch { /* ignore */ }
+
       return Response.json({
         ok: true,
         jars: listJarFiles(),
         dialects: getJdbcDialectStatus(),
         bridges,
+        hsqldbServer,
       })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erreur serveur'
@@ -155,15 +195,133 @@ export function createUploadJarHandlers() {
   }
 
   /**
-   * PATCH — Start or stop the JDBC bridge.
-   * Start: { action: 'start', dialect: string, host: string, port: number, name: string, user?: string, password?: string }
-   * Stop:  { action: 'stop', port: number }
-   * Returns: { ok: true, port: number } or { ok: false, error: string }
+   * PATCH — Manage JDBC bridge and HSQLDB server.
+   * start-server: { action: 'start-server', dialect, name, host?, port? }
+   * stop-server:  { action: 'stop-server', port? }
+   * start:        { action: 'start', dialect, host, port, name, user?, password? }
+   * stop:         { action: 'stop', port, pid? }
    */
   async function PATCH(req: Request) {
     try {
       const body = await req.json()
       const { action } = body
+
+      // ── Start HSQLDB server ──
+      if (action === 'start-server') {
+        const { dialect, name, host, port: sgbdPort } = body
+        if (dialect !== 'hsqldb') {
+          return Response.json({ ok: false, error: 'start-server supporte uniquement hsqldb' }, { status: 400 })
+        }
+        const actualPort = sgbdPort || 9001
+        // Check if already running
+        try {
+          const check = await fetch(`http://${host || 'localhost'}:${actualPort}`, { signal: AbortSignal.timeout(500) })
+          void check
+          return Response.json({ ok: true, message: `Serveur HSQLDB deja en marche sur le port ${actualPort}`, port: actualPort, alreadyRunning: true })
+        } catch { /* not running — proceed */ }
+
+        // Find JAR
+        const { JdbcNormalizer } = await import('@mostajs/orm')
+        const jarPath = JdbcNormalizer.findJar('hsqldb')
+        if (!jarPath) {
+          return Response.json({ ok: false, error: 'JAR HSQLDB non trouve. Uploadez hsqldb*.jar d\'abord.' })
+        }
+
+        // Launch server
+        const { spawn: spawnChild } = await import('child_process')
+        const { join } = await import('path')
+        const { writeFileSync, existsSync, mkdirSync } = await import('fs')
+        const dataDir = join(process.cwd(), 'data')
+        if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true })
+
+        const dbAlias = name || 'mydb'
+        const serverProc = spawnChild('java', [
+          '-cp', jarPath,
+          'org.hsqldb.server.Server',
+          '--database.0', `file:${join(dataDir, dbAlias)}`,
+          '--dbname.0', dbAlias,
+          '--port', String(actualPort),
+        ], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          detached: true,
+        })
+
+        serverProc.unref()
+        const serverPid = serverProc.pid || 0
+
+        // Save PID file for cleanup
+        const jarDir = process.env.MOSTA_JAR_DIR || join(process.cwd(), 'jar_files')
+        if (existsSync(jarDir)) {
+          writeFileSync(join(jarDir, `.hsqldb-server-${actualPort}.pid`), String(serverPid))
+        }
+
+        // Log stderr
+        serverProc.stderr?.on('data', (data: Buffer) => {
+          const msg = data.toString().trim()
+          if (msg) console.error(`[HSQLDB:server] ${msg}`)
+        })
+
+        // Wait for server to be ready
+        const startTime = Date.now()
+        let serverReady = false
+        while (Date.now() - startTime < 8000) {
+          try {
+            await new Promise(r => setTimeout(r, 500))
+            const sock = await fetch(`http://localhost:${actualPort}`, { signal: AbortSignal.timeout(500) })
+            void sock
+            serverReady = true
+            break
+          } catch {
+            // HSQLDB server doesn't speak HTTP, but we can check if the port is listening
+            // Try a TCP connection test via the bridge health check pattern
+          }
+        }
+
+        // Alternative: check if process is still alive and port is open
+        if (!serverReady) {
+          try {
+            process.kill(serverPid, 0) // check alive
+            // Port might be open but not HTTP — that's fine for HSQLDB
+            serverReady = true
+          } catch { /* process died */ }
+        }
+
+        if (!serverReady) {
+          return Response.json({ ok: false, error: 'Le serveur HSQLDB n\'a pas demarre dans le delai imparti' })
+        }
+
+        return Response.json({ ok: true, port: actualPort, pid: serverPid, message: `Serveur HSQLDB lance (port ${actualPort}, PID ${serverPid}, alias: ${dbAlias})` })
+      }
+
+      // ── Stop HSQLDB server ──
+      if (action === 'stop-server') {
+        const sgbdPort = body.port || 9001
+        try {
+          const { execSync } = await import('child_process')
+          const { existsSync, unlinkSync, readFileSync } = await import('fs')
+          const { join } = await import('path')
+          const jarDir = process.env.MOSTA_JAR_DIR || join(process.cwd(), 'jar_files')
+
+          // Kill by PID file
+          const pidFile = join(jarDir, `.hsqldb-server-${sgbdPort}.pid`)
+          if (existsSync(pidFile)) {
+            const pid = parseInt(readFileSync(pidFile, 'utf-8').trim())
+            if (pid > 0) {
+              try { process.kill(pid, 'SIGKILL') } catch { /* dead */ }
+            }
+            unlinkSync(pidFile)
+          }
+
+          // Also kill anything on the port
+          try {
+            execSync(`fuser -k ${sgbdPort}/tcp 2>/dev/null`, { stdio: 'ignore' })
+          } catch { /* already free */ }
+
+          return Response.json({ ok: true, message: `Serveur HSQLDB arrete (port ${sgbdPort})` })
+        } catch (err: unknown) {
+          return Response.json({ ok: false, error: err instanceof Error ? err.message : 'Erreur' })
+        }
+      }
 
       if (action === 'stop') {
         const bridgePort = body.port || 8765

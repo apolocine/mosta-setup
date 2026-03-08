@@ -282,17 +282,18 @@ async function fetchRetry(url: string, init: RequestInit, retries = 3, delay = 2
 // ── JAR Upload Sub-component ─────────────────────────────────
 
 interface BridgeInfo { port: number; pid: number; status: string; jdbcUrl?: string }
+interface ServerInfo { running: boolean; port: number; pid: number }
 
 function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
   dialect: Dialect; jarEndpoint: string; dbConfig: DbConfig
 }) {
   const [uploading, setUploading] = useState(false)
-  const [bridgeLoading, setBridgeLoading] = useState(false)
+  const [loading, setLoading] = useState<string | null>(null) // tracks which action is loading
   const [bridgePort, setBridgePort] = useState<number | null>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [jarStatus, setJarStatus] = useState<{ hasJar: boolean; jarFile: string | null } | null>(null)
   const [bridges, setBridges] = useState<BridgeInfo[]>([])
-  const [killingPort, setKillingPort] = useState<number | null>(null)
+  const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null)
 
   const loadStatus = useCallback(() => {
     fetch(jarEndpoint)
@@ -302,9 +303,11 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
           const s = data.dialects?.find((d: { dialect: string }) => d.dialect === dialect)
           setJarStatus(s || { hasJar: false, jarFile: null })
           setBridges(data.bridges || [])
-          // If a bridge is active, track its port
+          if (data.hsqldbServer) setServerInfo(data.hsqldbServer)
+          else setServerInfo(null)
           const active = (data.bridges || []).find((b: BridgeInfo) => b.status === 'active')
           if (active) setBridgePort(active.port)
+          else setBridgePort(null)
         }
       })
       .catch(() => {})
@@ -336,56 +339,41 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
     }
   }
 
-  const handleStartBridge = async () => {
-    setBridgeLoading(true)
+  const patchAction = async (payload: Record<string, unknown>, actionLabel: string) => {
+    setLoading(actionLabel)
     setMessage(null)
     try {
       const res = await fetch(jarEndpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start', dialect, ...dbConfig }),
+        body: JSON.stringify(payload),
       })
       const result = await res.json()
       if (result.ok) {
-        setBridgePort(result.port || 8765)
-        setMessage({ ok: true, text: `Bridge JDBC lance sur le port ${result.port || 8765}` })
-        loadStatus()
+        setMessage({ ok: true, text: result.message || actionLabel + ' OK' })
+        if (result.port && payload.action === 'start') setBridgePort(result.port)
+        if (payload.action === 'stop') setBridgePort(null)
       } else {
-        setMessage({ ok: false, text: result.error || 'Echec lancement du bridge' })
+        setMessage({ ok: false, text: result.error || 'Echec ' + actionLabel })
       }
+      loadStatus()
     } catch {
       setMessage({ ok: false, text: 'Erreur reseau' })
     } finally {
-      setBridgeLoading(false)
+      setLoading(null)
     }
   }
 
-  const handleStopBridge = async (port: number, pid: number) => {
-    setKillingPort(port)
-    setMessage(null)
-    try {
-      const res = await fetch(jarEndpoint, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'stop', port, pid }),
-      })
-      const result = await res.json()
-      if (result.ok) {
-        if (bridgePort === port) setBridgePort(null)
-        setMessage({ ok: true, text: result.message || 'Bridge arrete' })
-        loadStatus()
-      } else {
-        setMessage({ ok: false, text: result.error || 'Echec arret du bridge' })
-      }
-    } catch {
-      setMessage({ ok: false, text: 'Erreur reseau' })
-    } finally {
-      setKillingPort(null)
-    }
-  }
+  const isHsqldb = dialect === 'hsqldb'
+  const btnSmall = (color: string, disabled?: boolean): React.CSSProperties => ({
+    ...S.btn('primary', disabled), fontSize: 12, padding: '6px 14px',
+    backgroundColor: disabled ? '#9ca3af' : color, cursor: disabled ? 'not-allowed' : 'pointer',
+    borderRadius: 6, border: 'none', color: '#fff', fontWeight: 600,
+  })
 
   return (
     <div style={S.jarBox}>
+      {/* ── Row 1: JAR status ── */}
       <div style={S.flex(8)}>
         <span style={S.jarTitle}>Driver JDBC</span>
         {jarStatus?.hasJar ? (
@@ -393,30 +381,68 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
         ) : (
           <span style={{ fontSize: 12, color: '#6b7280' }}>Aucun JAR installe</span>
         )}
-        {bridgePort && (
-          <span style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>Bridge actif port {bridgePort}</span>
-        )}
       </div>
-      <div style={{ ...S.flex(8), marginTop: 8, flexWrap: 'wrap' as const }}>
+
+      {/* ── Row 2: Upload button ── */}
+      <div style={{ marginTop: 8 }}>
         <label style={{ ...S.btn('primary', uploading), cursor: uploading ? 'wait' : 'pointer', fontSize: 12, padding: '6px 12px' }}>
           {uploading ? 'Upload...' : 'Uploader un .jar'}
           <input type="file" accept=".jar" onChange={handleUpload} disabled={uploading} style={{ display: 'none' }} />
         </label>
-        {jarStatus?.hasJar && bridges.length === 0 && (
-          <button
-            style={{ ...S.btn('primary', bridgeLoading), fontSize: 12, padding: '6px 12px', backgroundColor: bridgeLoading ? '#6b7280' : '#059669' }}
-            onClick={handleStartBridge}
-            disabled={bridgeLoading}
-          >
-            {bridgeLoading ? 'Lancement...' : 'Lancer le bridge'}
-          </button>
-        )}
-        <span style={{ fontSize: 11, color: '#9ca3af' }}>Ex: hsqldb*.jar, ojdbc*.jar, db2jcc*.jar</span>
+        <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 8 }}>Ex: hsqldb*.jar, ojdbc*.jar</span>
       </div>
-      {/* Active bridges list */}
-      {bridges.length > 0 && (
-        <div style={{ marginTop: 8, padding: '8px 10px', backgroundColor: '#f0fdf4', borderRadius: 6, border: '1px solid #bbf7d0' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#166534', marginBottom: 4 }}>Bridges actifs</div>
+
+      {/* ── Row 3: HSQLDB Server control ── */}
+      {isHsqldb && jarStatus?.hasJar && (
+        <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#fef9c3', borderRadius: 6, border: '1px solid #fde68a' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 6 }}>
+            Serveur HSQLDB
+            {serverInfo?.running && (
+              <span style={{ fontWeight: 400, color: '#059669', marginLeft: 8 }}>
+                En marche (port {serverInfo.port}{serverInfo.pid > 0 ? `, PID ${serverInfo.pid}` : ''})
+              </span>
+            )}
+            {!serverInfo?.running && (
+              <span style={{ fontWeight: 400, color: '#dc2626', marginLeft: 8 }}>Arrete</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              style={btnSmall('#059669', loading === 'start-server' || serverInfo?.running)}
+              onClick={() => patchAction({ action: 'start-server', dialect, name: dbConfig.name, host: dbConfig.host, port: dbConfig.port }, 'start-server')}
+              disabled={loading === 'start-server' || !!serverInfo?.running}
+            >
+              {loading === 'start-server' ? 'Demarrage...' : 'Demarrer le serveur'}
+            </button>
+            <button
+              style={btnSmall('#dc2626', loading === 'stop-server' || !serverInfo?.running)}
+              onClick={() => patchAction({ action: 'stop-server', port: serverInfo?.port || dbConfig.port || 9001 }, 'stop-server')}
+              disabled={loading === 'stop-server' || !serverInfo?.running}
+            >
+              {loading === 'stop-server' ? 'Arret...' : 'Arreter le serveur'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Row 4: Bridge control ── */}
+      {jarStatus?.hasJar && (
+        <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#f0fdf4', borderRadius: 6, border: '1px solid #bbf7d0' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 6 }}>
+            Bridge JDBC
+            {bridgePort && <span style={{ fontWeight: 400, marginLeft: 8 }}>Actif port {bridgePort}</span>}
+            {!bridgePort && bridges.length === 0 && <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>Inactif</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: bridges.length > 0 ? 8 : 0 }}>
+            <button
+              style={btnSmall('#059669', loading === 'start-bridge' || bridges.length > 0)}
+              onClick={() => patchAction({ action: 'start', dialect, ...dbConfig }, 'start-bridge')}
+              disabled={loading === 'start-bridge' || bridges.length > 0}
+            >
+              {loading === 'start-bridge' ? 'Lancement...' : 'Lancer le bridge'}
+            </button>
+          </div>
+          {/* Bridge list */}
           {bridges.map(b => (
             <div key={b.port} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: b.status === 'active' ? '#22c55e' : '#f59e0b', flexShrink: 0 }} />
@@ -424,28 +450,18 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
                 :{b.port} {b.pid > 0 ? `(PID ${b.pid})` : ''} {b.jdbcUrl ? `— ${b.jdbcUrl}` : ''}
               </span>
               <button
-                style={{
-                  ...S.btn('primary', killingPort === b.port), fontSize: 11, padding: '2px 8px',
-                  backgroundColor: killingPort === b.port ? '#6b7280' : '#dc2626', marginLeft: 'auto',
-                }}
-                onClick={() => handleStopBridge(b.port, b.pid)}
-                disabled={killingPort === b.port}
+                style={{ ...btnSmall('#dc2626', loading === `kill-${b.port}`), fontSize: 11, padding: '2px 8px', marginLeft: 'auto' }}
+                onClick={() => patchAction({ action: 'stop', port: b.port, pid: b.pid }, `kill-${b.port}`)}
+                disabled={loading === `kill-${b.port}`}
               >
-                {killingPort === b.port ? '...' : 'Kill'}
+                {loading === `kill-${b.port}` ? '...' : 'Kill'}
               </button>
             </div>
           ))}
-          {bridges.length === 0 || bridges.some(b => b.status === 'active') ? null : (
-            <button
-              style={{ ...S.btn('primary', bridgeLoading), fontSize: 12, padding: '6px 12px', backgroundColor: '#059669', marginTop: 6 }}
-              onClick={handleStartBridge}
-              disabled={bridgeLoading}
-            >
-              {bridgeLoading ? 'Lancement...' : 'Lancer le bridge'}
-            </button>
-          )}
         </div>
       )}
+
+      {/* ── Message ── */}
       {message && (
         <p style={{ fontSize: 12, color: message.ok ? '#059669' : '#dc2626', marginTop: 8 }}>{message.text}</p>
       )}
@@ -839,23 +855,32 @@ export default function SetupWizard({
                       onChange={e => { setDbConfig({ ...dbConfig, name: e.target.value }); setDbTestResult(null) }}
                     />
                   </div>
-                  {dialect !== 'hsqldb' && (
-                    <div style={S.formRow}>
-                      <div style={S.formGroup}>
-                        <label style={S.label}>{t('setup.database.user')}</label>
-                        <input style={S.input} value={dbConfig.user}
-                          onChange={e => { setDbConfig({ ...dbConfig, user: e.target.value }); setDbTestResult(null) }}
-                        />
-                      </div>
-                      <div style={S.formGroup}>
-                        <label style={S.label}>{t('setup.database.password')}</label>
-                        <input style={S.input} type="password" value={dbConfig.password}
-                          onChange={e => { setDbConfig({ ...dbConfig, password: e.target.value }); setDbTestResult(null) }}
-                        />
-                      </div>
+                  <div style={S.formRow}>
+                    <div style={S.formGroup}>
+                      <label style={S.label}>{t('setup.database.user')}</label>
+                      <input style={S.input} value={dbConfig.user}
+                        onChange={e => { setDbConfig({ ...dbConfig, user: e.target.value }); setDbTestResult(null) }}
+                        placeholder={dialect === 'hsqldb' ? 'SA' : ''}
+                      />
                     </div>
-                  )}
+                    <div style={S.formGroup}>
+                      <label style={S.label}>{t('setup.database.password')}</label>
+                      <input style={S.input} type="password" value={dbConfig.password}
+                        onChange={e => { setDbConfig({ ...dbConfig, password: e.target.value }); setDbTestResult(null) }}
+                      />
+                    </div>
+                  </div>
                 </>
+              )}
+
+              {/* HSQLDB server hint */}
+              {dialect === 'hsqldb' && (
+                <div style={{ ...S.alert('warning'), marginTop: 12, fontSize: 12 }}>
+                  <strong>Prerequis :</strong> Le serveur HSQLDB doit etre lance avant le bridge.<br/>
+                  <code style={{ fontFamily: 'monospace', backgroundColor: '#fef3c7', padding: '2px 6px', borderRadius: 3, display: 'inline-block', marginTop: 4, fontSize: 11 }}>
+                    java -cp hsqldb*.jar org.hsqldb.server.Server --database.0 file:./data/{dbConfig.name} --dbname.0 {dbConfig.name}
+                  </code>
+                </div>
               )}
 
               {/* Driver hint */}

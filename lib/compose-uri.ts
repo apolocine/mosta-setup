@@ -32,6 +32,7 @@ export function composeDbUri(dialect: DialectType, config: DbConfig): string {
     case 'hana':
       return `hana://${eu}:${ep}@${host}:${port}`
     case 'hsqldb':
+      if (user) return `hsqldb:hsql://${eu}:${ep}@${host}:${port}/${name}`
       return `hsqldb:hsql://${host}:${port}/${name}`
     case 'spanner':
       return `spanner://projects/${name}`
