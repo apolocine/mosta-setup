@@ -400,6 +400,23 @@ export function createUploadJarHandlers() {
         })
       }
 
+      // For dialects that require a running server, check reachability first
+      const SERVER_DIALECTS: Record<string, number> = {
+        hsqldb: 9001, oracle: 1521, db2: 50000, mssql: 1433,
+      }
+      const defaultSgbdPort = SERVER_DIALECTS[dialect]
+      if (defaultSgbdPort) {
+        const sgbdPort = port || defaultSgbdPort
+        const sgbdHost = host || 'localhost'
+        const reachable = await isPortOpen(sgbdPort, sgbdHost, 2000)
+        if (!reachable) {
+          return Response.json({
+            ok: false,
+            error: `Serveur ${dialect.toUpperCase()} non accessible sur ${sgbdHost}:${sgbdPort}. Demarrez le serveur d'abord.`,
+          })
+        }
+      }
+
       const bridge = await manager.getOrCreate(dialect, uri)
       return Response.json({ ok: true, port: bridge.port })
     } catch (err: unknown) {
