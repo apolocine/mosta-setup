@@ -3,21 +3,51 @@
 // Author: Dr Hamid MADANI drmdh@msn.com
 
 /**
+ * Check if a TCP port is open (non-HTTP — raw socket connect).
+ */
+async function isPortOpen(port: number, host = 'localhost', timeoutMs = 800): Promise<boolean> {
+  const net = await import('net')
+  return new Promise(resolve => {
+    const socket = new net.Socket()
+    socket.setTimeout(timeoutMs)
+    socket.once('connect', () => { socket.destroy(); resolve(true) })
+    socket.once('timeout', () => { socket.destroy(); resolve(false) })
+    socket.once('error', () => { socket.destroy(); resolve(false) })
+    socket.connect(port, host)
+  })
+}
+
+/**
+ * Get PID of process listening on a port via fuser.
+ */
+async function getPidOnPort(port: number): Promise<number> {
+  try {
+    const { execSync } = await import('child_process')
+    const out = execSync(`fuser ${port}/tcp 2>/dev/null`, { encoding: 'utf-8' }).trim()
+    const pid = parseInt(out)
+    return isNaN(pid) ? 0 : pid
+  } catch {
+    return 0
+  }
+}
+
+/**
  * Creates handlers for JAR file management API.
  *
- * GET  — list uploaded JARs and JDBC dialect status
+ * GET  — list uploaded JARs, JDBC dialect status, active bridges, HSQLDB server status
  * POST — upload a new JAR file (multipart/form-data)
  * DELETE — remove a JAR file
+ * PATCH — start/stop HSQLDB server and JDBC bridge
  */
 export function createUploadJarHandlers() {
   async function GET() {
     try {
       const { listJarFiles, getJdbcDialectStatus } = await import('@mostajs/orm')
 
-      // Scan active bridges: BridgeManager bridges + PID files + port probing
+      // Scan active bridges
       const bridges: { port: number; pid: number; status: string; jdbcUrl?: string }[] = []
 
-      // 1. Check BridgeManager known bridges
+      // 1. BridgeManager known bridges
       try {
         const { BridgeManager } = await import('@mostajs/orm')
         const manager = BridgeManager.getInstance()
@@ -26,7 +56,7 @@ export function createUploadJarHandlers() {
         }
       } catch { /* ignore */ }
 
-      // 2. Scan PID files for orphan bridges
+      // 2. PID files for orphan bridges
       try {
         const { existsSync, readdirSync, readFileSync } = await import('fs')
         const { join } = await import('path')
@@ -37,49 +67,49 @@ export function createUploadJarHandlers() {
             const portMatch = file.match(/\.bridge-(\d+)\.pid/)
             if (!portMatch) continue
             const port = parseInt(portMatch[1])
-            // Skip if already known from BridgeManager
             if (bridges.some(b => b.port === port)) continue
             const pidStr = readFileSync(join(jarDir, file), 'utf-8').trim()
             const pid = parseInt(pidStr)
             if (isNaN(pid)) continue
-            // Check if process is alive
             let alive = false
             try { process.kill(pid, 0); alive = true } catch { /* dead */ }
             if (alive) {
-              // Probe health
               let jdbcUrl: string | undefined
               try {
                 const res = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(1000) })
-                if (res.ok) {
-                  const h = await res.json() as { jdbcUrl?: string }
-                  jdbcUrl = h.jdbcUrl
-                }
+                if (res.ok) { jdbcUrl = ((await res.json()) as { jdbcUrl?: string }).jdbcUrl }
               } catch { /* not responding */ }
               bridges.push({ port, pid, status: jdbcUrl ? 'active' : 'orphan', jdbcUrl })
+            } else {
+              // Clean stale PID file
+              try { (await import('fs')).unlinkSync(join(jarDir, file)) } catch { /* ignore */ }
             }
           }
         }
       } catch { /* ignore */ }
 
-      // 3. Probe common bridge ports for unknown bridges (no PID file)
+      // 3. Probe common bridge ports (HTTP — bridges speak HTTP)
       const basePort = parseInt(process.env.MOSTA_BRIDGE_PORT_BASE || '8765')
       for (let port = basePort; port < basePort + 5; port++) {
         if (bridges.some(b => b.port === port)) continue
         try {
           const res = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) })
           if (res.ok) {
-            const h = await res.json() as { jdbcUrl?: string }
-            bridges.push({ port, pid: 0, status: 'active', jdbcUrl: h.jdbcUrl })
+            const h = (await res.json()) as { jdbcUrl?: string }
+            const pid = await getPidOnPort(port)
+            bridges.push({ port, pid, status: 'active', jdbcUrl: h.jdbcUrl })
           }
         } catch { /* not a bridge */ }
       }
 
-      // Check HSQLDB server status
+      // Check HSQLDB server status (TCP probe, NOT HTTP)
       let hsqldbServer: { running: boolean; port: number; pid: number } | null = null
       try {
         const { existsSync, readdirSync, readFileSync } = await import('fs')
         const { join } = await import('path')
         const jarDir = process.env.MOSTA_JAR_DIR || join(process.cwd(), 'jar_files')
+
+        // Check PID files first
         if (existsSync(jarDir)) {
           const serverPidFiles = readdirSync(jarDir).filter((f: string) => f.startsWith('.hsqldb-server-') && f.endsWith('.pid'))
           for (const file of serverPidFiles) {
@@ -89,27 +119,22 @@ export function createUploadJarHandlers() {
             const pidStr = readFileSync(join(jarDir, file), 'utf-8').trim()
             const pid = parseInt(pidStr)
             let alive = false
-            if (pid > 0) {
-              try { process.kill(pid, 0); alive = true } catch { /* dead */ }
-            }
+            if (pid > 0) { try { process.kill(pid, 0); alive = true } catch { /* dead */ } }
             if (alive) {
               hsqldbServer = { running: true, port, pid }
             } else {
-              // Clean stale PID file
               try { (await import('fs')).unlinkSync(join(jarDir, file)) } catch { /* ignore */ }
             }
           }
         }
-        // Also check port 9001 if no PID file found
+
+        // Fallback: check port 9001 via TCP
         if (!hsqldbServer) {
-          const { execSync } = await import('child_process')
-          try {
-            const out = execSync('fuser 9001/tcp 2>/dev/null', { encoding: 'utf-8' }).trim()
-            if (out) {
-              const pid = parseInt(out)
-              hsqldbServer = { running: true, port: 9001, pid: isNaN(pid) ? 0 : pid }
-            }
-          } catch { /* not running */ }
+          const open = await isPortOpen(9001)
+          if (open) {
+            const pid = await getPidOnPort(9001)
+            hsqldbServer = { running: true, port: 9001, pid }
+          }
         }
       } catch { /* ignore */ }
 
@@ -213,12 +238,12 @@ export function createUploadJarHandlers() {
           return Response.json({ ok: false, error: 'start-server supporte uniquement hsqldb' }, { status: 400 })
         }
         const actualPort = sgbdPort || 9001
-        // Check if already running
-        try {
-          const check = await fetch(`http://${host || 'localhost'}:${actualPort}`, { signal: AbortSignal.timeout(500) })
-          void check
-          return Response.json({ ok: true, message: `Serveur HSQLDB deja en marche sur le port ${actualPort}`, port: actualPort, alreadyRunning: true })
-        } catch { /* not running — proceed */ }
+
+        // Check if already running (TCP probe, not HTTP)
+        if (await isPortOpen(actualPort, host || 'localhost')) {
+          const pid = await getPidOnPort(actualPort)
+          return Response.json({ ok: true, message: `Serveur HSQLDB deja en marche sur le port ${actualPort}`, port: actualPort, pid, alreadyRunning: true })
+        }
 
         // Find JAR
         const { JdbcNormalizer } = await import('@mostajs/orm')
@@ -249,7 +274,7 @@ export function createUploadJarHandlers() {
         serverProc.unref()
         const serverPid = serverProc.pid || 0
 
-        // Save PID file for cleanup
+        // Save PID file
         const jarDir = process.env.MOSTA_JAR_DIR || join(process.cwd(), 'jar_files')
         if (existsSync(jarDir)) {
           writeFileSync(join(jarDir, `.hsqldb-server-${actualPort}.pid`), String(serverPid))
@@ -261,29 +286,16 @@ export function createUploadJarHandlers() {
           if (msg) console.error(`[HSQLDB:server] ${msg}`)
         })
 
-        // Wait for server to be ready
-        const startTime = Date.now()
+        // Wait for server to be ready (TCP probe)
         let serverReady = false
-        while (Date.now() - startTime < 8000) {
-          try {
-            await new Promise(r => setTimeout(r, 500))
-            const sock = await fetch(`http://localhost:${actualPort}`, { signal: AbortSignal.timeout(500) })
-            void sock
+        for (let i = 0; i < 16; i++) {
+          await new Promise(r => setTimeout(r, 500))
+          if (await isPortOpen(actualPort, host || 'localhost')) {
             serverReady = true
             break
-          } catch {
-            // HSQLDB server doesn't speak HTTP, but we can check if the port is listening
-            // Try a TCP connection test via the bridge health check pattern
           }
-        }
-
-        // Alternative: check if process is still alive and port is open
-        if (!serverReady) {
-          try {
-            process.kill(serverPid, 0) // check alive
-            // Port might be open but not HTTP — that's fine for HSQLDB
-            serverReady = true
-          } catch { /* process died */ }
+          // Also check process is still alive
+          try { process.kill(serverPid, 0) } catch { break /* process died */ }
         }
 
         if (!serverReady) {
@@ -323,29 +335,29 @@ export function createUploadJarHandlers() {
         }
       }
 
+      // ── Stop bridge ──
       if (action === 'stop') {
         const bridgePort = body.port || 8765
         const bridgePid = body.pid || 0
         try {
           // 1. Try BridgeManager
-          const { BridgeManager } = await import('@mostajs/orm')
-          const manager = BridgeManager.getInstance()
-          const bridges = manager.list()
-          const bridge = bridges.find((b: { port: number }) => b.port === bridgePort)
-          if (bridge) {
-            await manager.stop(bridge.key)
-          }
-
-          // 2. Kill by PID if provided
-          if (bridgePid > 0) {
-            try { process.kill(bridgePid, 'SIGKILL') } catch { /* already dead */ }
-          }
-
-          // 3. Fallback: kill process on port
-          const { execSync } = await import('child_process')
           try {
+            const { BridgeManager } = await import('@mostajs/orm')
+            const manager = BridgeManager.getInstance()
+            const bridge = manager.list().find((b: { port: number }) => b.port === bridgePort)
+            if (bridge) await manager.stop(bridge.key)
+          } catch { /* ignore */ }
+
+          // 2. Kill by PID
+          if (bridgePid > 0) {
+            try { process.kill(bridgePid, 'SIGKILL') } catch { /* dead */ }
+          }
+
+          // 3. Fallback: fuser
+          try {
+            const { execSync } = await import('child_process')
             execSync(`fuser -k ${bridgePort}/tcp 2>/dev/null`, { stdio: 'ignore' })
-          } catch { /* port may already be free */ }
+          } catch { /* already free */ }
 
           // 4. Clean PID file
           try {
@@ -357,19 +369,17 @@ export function createUploadJarHandlers() {
 
           return Response.json({ ok: true, message: `Bridge arrete (port ${bridgePort})` })
         } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : 'Erreur'
-          return Response.json({ ok: false, error: msg })
+          return Response.json({ ok: false, error: err instanceof Error ? err.message : 'Erreur' })
         }
       }
 
-      // Default: action === 'start'
+      // ── Start bridge ──
       const { dialect, host, port, name, user, password } = body
 
       if (!dialect) {
         return Response.json({ ok: false, error: 'dialect requis' }, { status: 400 })
       }
 
-      // Compose URI using setup's composeDbUri for consistency with test-db
       const { composeDbUri } = await import('../lib/compose-uri')
       const uri = composeDbUri(dialect, {
         host: host || 'localhost',
@@ -379,12 +389,10 @@ export function createUploadJarHandlers() {
         password: password || '',
       })
 
-      // Start bridge via BridgeManager directly (no SELECT 1 — just start the Java process)
       const { BridgeManager } = await import('@mostajs/orm')
       const { JdbcNormalizer } = await import('@mostajs/orm')
       const manager = BridgeManager.getInstance()
 
-      // Check if JAR is available
       if (!JdbcNormalizer.isAvailable(dialect)) {
         return Response.json({
           ok: false,
