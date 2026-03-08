@@ -21,9 +21,11 @@ export { createStatusHandler } from './api/status.route'
 export { createDetectModulesHandler } from './api/detect-modules.route'
 export { createInstallModulesHandler } from './api/install-modules.route'
 export { createReconfigHandlers } from './api/reconfig.route'
+export { createUploadJarHandlers } from './api/upload-jar.route'
 
 // Components
 export { default as ReconfigPanel } from './components/ReconfigPanel'
+export { default as SetupWizard } from './components/SetupWizard'
 
 // Menu contribution
 export { setupMenuContribution } from './lib/menu'

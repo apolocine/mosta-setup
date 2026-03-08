@@ -58,8 +58,10 @@ npm install @mostajs/setup @mostajs/orm
 │   ├── install.route.ts         # Factory POST /api/setup/install
 │   ├── detect-modules.route.ts  # Factory GET  /api/setup/detect-modules
 │   ├── install-modules.route.ts # Factory POST /api/setup/install-modules
-│   └── reconfig.route.ts        # Factory GET+POST /api/setup/reconfig
+│   ├── reconfig.route.ts        # Factory GET+POST /api/setup/reconfig
+│   └── upload-jar.route.ts     # Factory GET+POST+DELETE /api/setup/upload-jar
 ├── components/
+│   ├── SetupWizard.tsx          # Wizard d'installation complet (6 etapes)
 │   └── ReconfigPanel.tsx        # UI reconfiguration (modules + DB)
 ├── types/
 │   └── index.ts                 # Tous les types TypeScript
@@ -347,241 +349,67 @@ Ce handler :
 
 ### Etape 4 — Creer la page Setup (frontend)
 
-Voici un exemple **minimal** de page setup. Adaptez le style a votre design system.
+Le module fournit un composant **`SetupWizard`** pret a l'emploi avec inline styles (aucune dependance Tailwind/shadcn).
+Votre page Next.js n'est qu'un **wrapper** d'une vingtaine de lignes :
 
 ```tsx
 // src/app/setup/page.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { resolveModuleDependencies } from '@mostajs/setup/data/module-definitions'
-import type { ModuleDefinition } from '@mostajs/setup'
-
-type Dialect = 'mongodb' | 'sqlite' | 'postgres' | 'mysql' | 'mariadb'
-  | 'oracle' | 'mssql' | 'cockroachdb' | 'db2' | 'hana'
-  | 'hsqldb' | 'spanner' | 'sybase'
+import SetupWizard from '@mostajs/setup/components/SetupWizard'
+import { t } from '@/i18n'  // ou toute fonction de traduction
 
 export default function SetupPage() {
   const router = useRouter()
 
-  // --- Etat du wizard ---
-  const [step, setStep] = useState(1)                     // 1=modules, 2=db, 3=admin, 4=install
-
-  // Modules
-  const [availableModules, setAvailableModules] = useState<ModuleDefinition[]>([])
-  const [selectedModules, setSelectedModules] = useState<string[]>([])
-  const [installedModules, setInstalledModules] = useState<string[]>([])
-
-  // DB
-  const [dialect, setDialect] = useState<Dialect>('mongodb')
-  const [dbConfig, setDbConfig] = useState({ host: 'localhost', port: 27017, name: 'mydb', user: '', password: '' })
-  const [dbOk, setDbOk] = useState(false)
-
-  // Admin
-  const [admin, setAdmin] = useState({ email: '', password: '', firstName: '', lastName: '' })
-
-  // Install
-  const [installing, setInstalling] = useState(false)
-  const [result, setResult] = useState<{ ok: boolean; error?: string } | null>(null)
-
-  // --- Charger les modules depuis l'API au montage ---
-  useEffect(() => {
-    fetch('/api/setup/detect-modules')
-      .then(r => r.json())
-      .then((data: { modules: ModuleDefinition[]; installed: string[] }) => {
-        setAvailableModules(data.modules || [])
-        setInstalledModules(data.installed || [])
-        // Pre-cocher les modules required + default + deja installes
-        const preChecked = new Set([
-          ...(data.modules || []).filter(m => m.required || m.default).map(m => m.key),
-          ...(data.installed || []),
-        ])
-        setSelectedModules(Array.from(preChecked))
-      })
-      .catch(() => {})
-  }, [])
-
-  // --- Toggle un module (avec resolution des dependances) ---
-  function toggleModule(key: string) {
-    const mod = availableModules.find(m => m.key === key)
-    if (!mod || mod.required) return
-
-    setSelectedModules(prev => {
-      if (prev.includes(key)) {
-        // Decochage : retirer aussi les modules qui dependent de celui-ci
-        const toRemove = new Set([key])
-        let changed = true
-        while (changed) {
-          changed = false
-          for (const m of availableModules) {
-            if (toRemove.has(m.key) || m.required) continue
-            if (m.dependsOn?.some(dep => toRemove.has(dep)) && prev.includes(m.key)) {
-              toRemove.add(m.key)
-              changed = true
-            }
-          }
-        }
-        return prev.filter(k => !toRemove.has(k))
-      } else {
-        // Cochage : ajouter les dependances transitives
-        return resolveModuleDependencies([...prev, key], availableModules)
-      }
-    })
-  }
-
-  // --- Tester la connexion DB ---
-  async function testDb() {
-    const res = await fetch('/api/setup/test-db', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dialect, ...dbConfig }),
-    })
-    const data = await res.json()
-    setDbOk(data.ok === true)
-  }
-
-  // --- Lancer l'installation ---
-  async function install() {
-    setInstalling(true)
-    setResult(null)
-
-    // 1. Installer les modules npm
-    const modRes = await fetch('/api/setup/install-modules', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ modules: selectedModules }),
-    })
-    if (!modRes.ok) {
-      setResult({ ok: false, error: 'Erreur installation modules' })
-      setInstalling(false)
-      return
-    }
-
-    // 2. Configurer la DB + seeder
-    const res = await fetch('/api/setup/install', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dialect, db: dbConfig, admin, modules: selectedModules }),
-    })
-    const data = await res.json()
-    setResult(data.data || { ok: false, error: data.error?.message })
-    setInstalling(false)
-  }
-
   return (
-    <div style={{ maxWidth: 600, margin: '50px auto', padding: 20 }}>
-      <h1>Setup — Mon Application</h1>
-
-      {/* ── Etape 1 : Modules ── */}
-      {step === 1 && (
-        <div>
-          <h2>1. Modules</h2>
-          {availableModules.map(mod => (
-            <label key={mod.key} style={{ display: 'block', margin: '8px 0' }}>
-              <input
-                type="checkbox"
-                checked={selectedModules.includes(mod.key)}
-                disabled={mod.required}
-                onChange={() => toggleModule(mod.key)}
-              />
-              {' '}{mod.icon} {mod.label}
-              {mod.required && <em> (requis)</em>}
-              {mod.discovered && <strong> NOUVEAU</strong>}
-              {installedModules.includes(mod.key) && <span> ✓</span>}
-            </label>
-          ))}
-          <button onClick={() => setStep(2)}>Suivant →</button>
-        </div>
-      )}
-
-      {/* ── Etape 2 : Base de donnees ── */}
-      {step === 2 && (
-        <div>
-          <h2>2. Base de donnees</h2>
-          <select value={dialect} onChange={e => setDialect(e.target.value as Dialect)}>
-            <option value="mongodb">MongoDB</option>
-            <option value="sqlite">SQLite</option>
-            <option value="postgres">PostgreSQL</option>
-            <option value="mysql">MySQL</option>
-            {/* ... autres dialectes ... */}
-          </select>
-
-          {dialect !== 'sqlite' && (
-            <>
-              <input placeholder="Host" value={dbConfig.host}
-                onChange={e => setDbConfig({ ...dbConfig, host: e.target.value })} />
-              <input placeholder="Port" type="number" value={dbConfig.port}
-                onChange={e => setDbConfig({ ...dbConfig, port: +e.target.value })} />
-              <input placeholder="User" value={dbConfig.user}
-                onChange={e => setDbConfig({ ...dbConfig, user: e.target.value })} />
-              <input placeholder="Password" type="password" value={dbConfig.password}
-                onChange={e => setDbConfig({ ...dbConfig, password: e.target.value })} />
-            </>
-          )}
-          <input placeholder="Nom de la base" value={dbConfig.name}
-            onChange={e => setDbConfig({ ...dbConfig, name: e.target.value })} />
-
-          <button onClick={testDb}>Tester la connexion</button>
-          {dbOk && <span style={{ color: 'green' }}> ✓ Connexion OK</span>}
-
-          <br />
-          <button onClick={() => setStep(1)}>← Retour</button>
-          <button onClick={() => setStep(3)} disabled={dialect !== 'sqlite' && !dbOk}>
-            Suivant →
-          </button>
-        </div>
-      )}
-
-      {/* ── Etape 3 : Administrateur ── */}
-      {step === 3 && (
-        <div>
-          <h2>3. Administrateur</h2>
-          <input placeholder="Prenom" value={admin.firstName}
-            onChange={e => setAdmin({ ...admin, firstName: e.target.value })} />
-          <input placeholder="Nom" value={admin.lastName}
-            onChange={e => setAdmin({ ...admin, lastName: e.target.value })} />
-          <input placeholder="Email" type="email" value={admin.email}
-            onChange={e => setAdmin({ ...admin, email: e.target.value })} />
-          <input placeholder="Mot de passe (min 6)" type="password" value={admin.password}
-            onChange={e => setAdmin({ ...admin, password: e.target.value })} />
-
-          <br />
-          <button onClick={() => setStep(2)}>← Retour</button>
-          <button onClick={() => setStep(4)}>Suivant →</button>
-        </div>
-      )}
-
-      {/* ── Etape 4 : Installation ── */}
-      {step === 4 && (
-        <div>
-          <h2>4. Recapitulatif</h2>
-          <p><strong>DB :</strong> {dialect} — {dbConfig.name}</p>
-          <p><strong>Admin :</strong> {admin.email}</p>
-          <p><strong>Modules :</strong> {selectedModules.join(', ')}</p>
-
-          <button onClick={install} disabled={installing}>
-            {installing ? 'Installation en cours...' : 'Installer'}
-          </button>
-
-          {result?.ok && (
-            <div style={{ color: 'green', marginTop: 16 }}>
-              ✓ Installation terminee !
-              <br />
-              <button onClick={() => router.push('/login')}>Aller au login →</button>
-            </div>
-          )}
-          {result && !result.ok && (
-            <div style={{ color: 'red', marginTop: 16 }}>
-              ✗ Erreur : {result.error}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    <SetupWizard
+      t={t}
+      onComplete={() => router.push('/login')}
+      dbNamePrefix="secuaccessdb"
+      endpoints={{
+        detectModules: '/api/setup/detect-modules',
+        testDb: '/api/setup/test-db',
+        installModules: '/api/setup/install-modules',
+        install: '/api/setup/install',
+        uploadJar: '/api/setup/upload-jar',
+      }}
+    />
   )
 }
 ```
+
+#### Props de SetupWizard
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `t` | `(key: string) => string` | `(k) => k` | Fonction de traduction (recoit des cles `setup.xxx`) |
+| `onComplete` | `() => void` | — | Callback apres installation reussie (ex: `router.push('/login')`) |
+| `dbNamePrefix` | `string` | `'mydb'` | Prefixe pour le nom de base par defaut |
+| `persistState` | `boolean` | `true` | Persister l'etat du wizard dans `sessionStorage` |
+| `endpoints` | `object` | voir ci-dessous | URLs des routes API |
+
+**Endpoints par defaut :**
+```json
+{
+  "detectModules": "/api/setup/detect-modules",
+  "testDb": "/api/setup/test-db",
+  "installModules": "/api/setup/install-modules",
+  "install": "/api/setup/install",
+  "uploadJar": "/api/setup/upload-jar"
+}
+```
+
+**Cles i18n attendues :** `setup.steps.*`, `setup.welcome.*`, `setup.modules.*`, `setup.dialect.*`, `setup.database.*`, `setup.admin.*`, `setup.summary.*`, `setup.back`, `setup.next`.
+
+#### Le wizard inclut :
+- **6 etapes** : Accueil → Modules → Dialecte → Base de donnees → Admin → Recapitulatif
+- **13 dialectes** avec distinction Premium (grises, non cliquables) et badges JDBC
+- **Upload JAR** integre pour les dialectes JDBC (hsqldb, oracle, db2, hana, sybase)
+- **Persistence sessionStorage** pour survivre aux hot-reloads Next.js
+- **Resolution des dependances** entre modules
+- **Retry automatique** apres npm install (le serveur peut redemarrer)
 
 ### Etape 5 — Middleware : rediriger vers /setup
 
@@ -948,7 +776,25 @@ const { GET, POST } = createReconfigHandlers()
 export { GET, POST }
 ```
 
-#### 2. Page de reconfiguration
+#### 2. Route API JAR Upload (drivers JDBC)
+
+**`src/app/api/setup/upload-jar/route.ts`**
+```typescript
+// Author: Dr Hamid MADANI drmdh@msn.com
+import { createUploadJarHandlers } from '@mostajs/setup/api/upload-jar'
+
+const { GET, POST, DELETE } = createUploadJarHandlers()
+export { GET, POST, DELETE }
+```
+
+> La logique d'upload est dans `@mostajs/orm` (`saveJarFile`, `deleteJarFile`, `listJarFiles`).
+> La route factory dans `@mostajs/setup` ne fait que la deleguer.
+>
+> - **GET** — liste les JARs et le statut des dialects JDBC
+> - **POST** — upload un fichier `.jar` (multipart/form-data, champ `jar`)
+> - **DELETE** — supprime un JAR (`{ "fileName": "hsqldb-2.7.2.jar" }`)
+
+#### 3. Page de reconfiguration
 
 **`src/app/dashboard/settings/reconfig/page.tsx`**
 ```tsx
@@ -962,6 +808,7 @@ export default function ReconfigPage() {
       <ReconfigPanel
         apiEndpoint="/api/setup/reconfig"
         detectEndpoint="/api/setup/detect-modules"
+        jarEndpoint="/api/setup/upload-jar"
         showSeedOption
         onDbChanged={() => window.location.reload()}
         onSeedRequested={async () => {

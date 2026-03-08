@@ -18,7 +18,7 @@ export function createTestDbHandler(needsSetup: NeedsSetupFn) {
     }
 
     const body = await req.json()
-    const { dialect, host, port, name, user, password } = body
+    const { dialect, host, port, name, user, password, createIfNotExists } = body
 
     if (!dialect || !name) {
       return Response.json({ error: 'Missing required fields' }, { status: 400 })
@@ -31,6 +31,7 @@ export function createTestDbHandler(needsSetup: NeedsSetupFn) {
       name,
       user: user || '',
       password: password || '',
+      createIfNotExists: !!createIfNotExists,
     })
 
     return Response.json(result)

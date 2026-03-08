@@ -39,17 +39,28 @@ interface DialectOption {
   defaultUser: string
   defaultHost: string
   requiresAuth: boolean
+  premium?: boolean
+  /** Dialect needs a JDBC JAR (bridge mode) */
+  jdbc?: boolean
 }
 
+/** Dialects that require a JDBC bridge JAR */
+const JDBC_DIALECTS: DialectType[] = ['hsqldb', 'oracle', 'db2', 'sybase', 'hana']
+
 const DIALECTS: DialectOption[] = [
-  { key: 'mongodb',  name: 'MongoDB',      icon: '🍃', defaultPort: 27017, defaultUser: '',       defaultHost: 'localhost', requiresAuth: false },
-  { key: 'sqlite',   name: 'SQLite',       icon: '📄', defaultPort: 0,     defaultUser: '',       defaultHost: '',          requiresAuth: false },
-  { key: 'postgres', name: 'PostgreSQL',   icon: '🐘', defaultPort: 5432,  defaultUser: 'postgres', defaultHost: 'localhost', requiresAuth: true },
-  { key: 'mysql',    name: 'MySQL',        icon: '🐬', defaultPort: 3306,  defaultUser: 'root',   defaultHost: 'localhost', requiresAuth: true },
-  { key: 'mariadb',  name: 'MariaDB',      icon: '🦭', defaultPort: 3306,  defaultUser: 'root',   defaultHost: 'localhost', requiresAuth: true },
-  { key: 'mssql',    name: 'SQL Server',   icon: '🟦', defaultPort: 1433,  defaultUser: 'sa',     defaultHost: 'localhost', requiresAuth: true },
-  { key: 'oracle',   name: 'Oracle',       icon: '🔴', defaultPort: 1521,  defaultUser: 'system', defaultHost: 'localhost', requiresAuth: true },
-  { key: 'cockroachdb', name: 'CockroachDB', icon: '🪳', defaultPort: 26257, defaultUser: 'root', defaultHost: 'localhost', requiresAuth: true },
+  { key: 'mongodb',     name: 'MongoDB',        icon: '🍃', defaultPort: 27017, defaultUser: '',         defaultHost: 'localhost', requiresAuth: false },
+  { key: 'sqlite',      name: 'SQLite',         icon: '📄', defaultPort: 0,     defaultUser: '',         defaultHost: '',          requiresAuth: false },
+  { key: 'postgres',    name: 'PostgreSQL',     icon: '🐘', defaultPort: 5432,  defaultUser: 'postgres', defaultHost: 'localhost', requiresAuth: true },
+  { key: 'mysql',       name: 'MySQL',          icon: '🐬', defaultPort: 3306,  defaultUser: 'root',     defaultHost: 'localhost', requiresAuth: true },
+  { key: 'mariadb',     name: 'MariaDB',        icon: '🦭', defaultPort: 3306,  defaultUser: 'root',     defaultHost: 'localhost', requiresAuth: true },
+  { key: 'mssql',       name: 'SQL Server',     icon: '🟦', defaultPort: 1433,  defaultUser: 'sa',       defaultHost: 'localhost', requiresAuth: true },
+  { key: 'oracle',      name: 'Oracle',         icon: '🔴', defaultPort: 1521,  defaultUser: 'system',   defaultHost: 'localhost', requiresAuth: true,  premium: true, jdbc: true },
+  { key: 'cockroachdb', name: 'CockroachDB',    icon: '🪳', defaultPort: 26257, defaultUser: 'root',     defaultHost: 'localhost', requiresAuth: true },
+  { key: 'db2',         name: 'IBM DB2',        icon: '🏢', defaultPort: 50000, defaultUser: 'db2inst1', defaultHost: 'localhost', requiresAuth: true,  premium: true, jdbc: true },
+  { key: 'hana',        name: 'SAP HANA',       icon: '💎', defaultPort: 39013, defaultUser: 'SYSTEM',   defaultHost: 'localhost', requiresAuth: true,  premium: true, jdbc: true },
+  { key: 'hsqldb',      name: 'HyperSQL',       icon: '⚡', defaultPort: 9001,  defaultUser: 'SA',       defaultHost: 'localhost', requiresAuth: false, jdbc: true },
+  { key: 'spanner',     name: 'Cloud Spanner',  icon: '☁️', defaultPort: 0,     defaultUser: '',         defaultHost: '',          requiresAuth: false, premium: true },
+  { key: 'sybase',      name: 'Sybase ASE',     icon: '🔷', defaultPort: 5000,  defaultUser: 'sa',       defaultHost: 'localhost', requiresAuth: true,  premium: true, jdbc: true },
 ]
 
 export interface ReconfigPanelProps {
@@ -57,6 +68,8 @@ export interface ReconfigPanelProps {
   apiEndpoint?: string
   /** API endpoint for module detection (default: '/api/setup/detect-modules') */
   detectEndpoint?: string
+  /** API endpoint for JAR upload (default: '/api/setup/upload-jar') */
+  jarEndpoint?: string
   /** Translate function */
   t?: (key: string) => string
   /** Called after successful DB change */
@@ -169,6 +182,7 @@ const S = {
 export default function ReconfigPanel({
   apiEndpoint = '/api/setup/reconfig',
   detectEndpoint = '/api/setup/detect-modules',
+  jarEndpoint = '/api/setup/upload-jar',
   t = (k) => k,
   onDbChanged,
   onModulesChanged,
@@ -192,6 +206,12 @@ export default function ReconfigPanel({
   const [dbMessage, setDbMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null)
   const [wantSeed, setWantSeed] = useState(true)
   const [seeding, setSeeding] = useState(false)
+
+  // JAR upload
+  const [jarUploading, setJarUploading] = useState(false)
+  const [jarMessage, setJarMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [jarFiles, setJarFiles] = useState<{ fileName: string; dialect: string | null; label: string | null }[]>([])
+  const [jdbcStatus, setJdbcStatus] = useState<{ dialect: string; label: string; hasJar: boolean; jarFile: string | null }[]>([])
 
   // Module saving
   const [moduleSaving, setModuleSaving] = useState(false)
@@ -231,14 +251,90 @@ export default function ReconfigPanel({
           password: '',
         })
       }
+      // Load JAR status
+      try {
+        const jarRes = await fetch(jarEndpoint)
+        const jarData = await jarRes.json()
+        if (jarData.ok) {
+          setJarFiles(jarData.jars || [])
+          setJdbcStatus(jarData.dialects || [])
+        }
+      } catch {
+        // JAR endpoint may not exist — ignore
+      }
     } catch {
       // ignore
     } finally {
       setLoading(false)
     }
-  }, [apiEndpoint, detectEndpoint])
+  }, [apiEndpoint, detectEndpoint, jarEndpoint])
 
   useEffect(() => { loadConfig() }, [loadConfig])
+
+  // --- JAR upload ---
+  const handleJarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.name.endsWith('.jar')) {
+      setJarMessage({ type: 'error', text: 'Le fichier doit etre un .jar' })
+      return
+    }
+
+    setJarUploading(true)
+    setJarMessage(null)
+    try {
+      const formData = new FormData()
+      formData.append('jar', file)
+
+      const res = await fetch(jarEndpoint, { method: 'POST', body: formData })
+      const result = await res.json()
+
+      if (result.ok) {
+        const msg = result.replaced
+          ? `${result.fileName} uploade (remplace ${result.replaced})`
+          : `${result.fileName} uploade`
+        setJarMessage({ type: 'success', text: result.dialect ? `${msg} — dialect: ${result.dialect}` : msg })
+        // Refresh JAR list
+        const jarRes = await fetch(jarEndpoint)
+        const jarData = await jarRes.json()
+        if (jarData.ok) {
+          setJarFiles(jarData.jars || [])
+          setJdbcStatus(jarData.dialects || [])
+        }
+      } else {
+        setJarMessage({ type: 'error', text: result.error || 'Erreur upload' })
+      }
+    } catch {
+      setJarMessage({ type: 'error', text: 'Erreur reseau' })
+    } finally {
+      setJarUploading(false)
+      // Reset input
+      e.target.value = ''
+    }
+  }
+
+  const handleJarDelete = async (fileName: string) => {
+    try {
+      const res = await fetch(jarEndpoint, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName }),
+      })
+      const result = await res.json()
+      if (result.ok) {
+        setJarMessage({ type: 'success', text: `${fileName} supprime` })
+        const jarRes = await fetch(jarEndpoint)
+        const jarData = await jarRes.json()
+        if (jarData.ok) {
+          setJarFiles(jarData.jars || [])
+          setJdbcStatus(jarData.dialects || [])
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   // --- Dialect change ---
   const handleDialectChange = (dialect: DialectType) => {
@@ -448,7 +544,88 @@ export default function ReconfigPanel({
         </div>
       </div>
 
-      {/* ─── Section 2: Base de donnees ─── */}
+      {/* ─── Section 2: Drivers JDBC (JAR) ─── */}
+      <div style={S.section}>
+        <div style={S.sectionTitle}>
+          <span>☕</span> Drivers JDBC
+        </div>
+        <div style={S.sectionDesc}>
+          Uploadez les fichiers JAR des drivers JDBC pour les bases de donnees enterprise.
+          Les dialects JDBC (HyperSQL, Oracle, DB2, SAP HANA, Sybase) utilisent un bridge Java pour se connecter.
+        </div>
+
+        {jarMessage && (
+          <div style={S.alert(jarMessage.type)}>{jarMessage.text}</div>
+        )}
+
+        {/* JDBC dialect status table */}
+        {jdbcStatus.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
+                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Dialect</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Statut</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600 }}>Fichier JAR</th>
+                  <th style={{ padding: '8px 12px', fontWeight: 600 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {jdbcStatus.map((s) => (
+                  <tr key={s.dialect} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 500 }}>{s.label}</td>
+                    <td style={{ padding: '8px 12px' }}>
+                      {s.hasJar ? (
+                        <span style={{ color: '#059669', fontWeight: 600, fontSize: 12 }}>Pret</span>
+                      ) : (
+                        <span style={{ color: '#9ca3af', fontSize: 12 }}>Non installe</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '8px 12px', fontSize: 12, color: '#6b7280', fontFamily: 'monospace' }}>
+                      {s.jarFile || '—'}
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      {s.hasJar && s.jarFile && (
+                        <button
+                          style={{ ...S.btn('danger'), padding: '3px 8px', fontSize: 11 }}
+                          onClick={() => handleJarDelete(s.jarFile!)}
+                        >
+                          Supprimer
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Upload button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <label
+            style={{
+              ...S.btn('primary'),
+              cursor: jarUploading ? 'wait' : 'pointer',
+              opacity: jarUploading ? 0.6 : 1,
+            }}
+          >
+            {jarUploading ? 'Upload en cours...' : 'Uploader un fichier .jar'}
+            <input
+              type="file"
+              accept=".jar"
+              onChange={handleJarUpload}
+              disabled={jarUploading}
+              style={{ display: 'none' }}
+            />
+          </label>
+          <span style={{ fontSize: 12, color: '#9ca3af' }}>
+            Formats acceptes : hsqldb*.jar, ojdbc*.jar, db2jcc*.jar, ngdbc*.jar, jconn*.jar
+          </span>
+        </div>
+      </div>
+
+      {/* ─── Section 3: Base de donnees ─── */}
       <div style={S.section}>
         <div style={S.sectionTitle}>
           <span>🗄️</span> Base de donnees
@@ -473,13 +650,29 @@ export default function ReconfigPanel({
             {DIALECTS.map((d) => (
               <div
                 key={d.key}
-                style={S.dialectCard(selectedDialect === d.key)}
-                onClick={() => handleDialectChange(d.key)}
+                style={{
+                  ...S.dialectCard(selectedDialect === d.key && !d.premium),
+                  ...(d.premium ? { opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(0.5)' } : {}),
+                }}
+                onClick={() => !d.premium && handleDialectChange(d.key)}
+                title={d.premium ? `${d.name} — disponible en version Premium` : d.name}
               >
                 <div style={S.dialectIcon}>{d.icon}</div>
                 <div style={S.dialectName}>
                   {d.name}
                   {d.key === currentDialect && <span style={{ fontSize: 9, color: '#059669' }}> (actuel)</span>}
+                  {d.premium && (
+                    <div style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: '#b45309',
+                      backgroundColor: '#fef3c7',
+                      padding: '1px 5px',
+                      borderRadius: 4,
+                      marginTop: 3,
+                      display: 'inline-block',
+                    }}>Premium</div>
+                  )}
                 </div>
               </div>
             ))}
