@@ -13,10 +13,72 @@ export function createUploadJarHandlers() {
   async function GET() {
     try {
       const { listJarFiles, getJdbcDialectStatus } = await import('@mostajs/orm')
+
+      // Scan active bridges: BridgeManager bridges + PID files + port probing
+      const bridges: { port: number; pid: number; status: string; jdbcUrl?: string }[] = []
+
+      // 1. Check BridgeManager known bridges
+      try {
+        const { BridgeManager } = await import('@mostajs/orm')
+        const manager = BridgeManager.getInstance()
+        for (const b of manager.list()) {
+          bridges.push({ port: b.port, pid: b.pid, status: 'active', jdbcUrl: b.jdbcUrl })
+        }
+      } catch { /* ignore */ }
+
+      // 2. Scan PID files for orphan bridges
+      try {
+        const { existsSync, readdirSync, readFileSync } = await import('fs')
+        const { join } = await import('path')
+        const jarDir = process.env.MOSTA_JAR_DIR || join(process.cwd(), 'jar_files')
+        if (existsSync(jarDir)) {
+          const pidFiles = readdirSync(jarDir).filter((f: string) => f.startsWith('.bridge-') && f.endsWith('.pid'))
+          for (const file of pidFiles) {
+            const portMatch = file.match(/\.bridge-(\d+)\.pid/)
+            if (!portMatch) continue
+            const port = parseInt(portMatch[1])
+            // Skip if already known from BridgeManager
+            if (bridges.some(b => b.port === port)) continue
+            const pidStr = readFileSync(join(jarDir, file), 'utf-8').trim()
+            const pid = parseInt(pidStr)
+            if (isNaN(pid)) continue
+            // Check if process is alive
+            let alive = false
+            try { process.kill(pid, 0); alive = true } catch { /* dead */ }
+            if (alive) {
+              // Probe health
+              let jdbcUrl: string | undefined
+              try {
+                const res = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(1000) })
+                if (res.ok) {
+                  const h = await res.json() as { jdbcUrl?: string }
+                  jdbcUrl = h.jdbcUrl
+                }
+              } catch { /* not responding */ }
+              bridges.push({ port, pid, status: jdbcUrl ? 'active' : 'orphan', jdbcUrl })
+            }
+          }
+        }
+      } catch { /* ignore */ }
+
+      // 3. Probe common bridge ports for unknown bridges (no PID file)
+      const basePort = parseInt(process.env.MOSTA_BRIDGE_PORT_BASE || '8765')
+      for (let port = basePort; port < basePort + 5; port++) {
+        if (bridges.some(b => b.port === port)) continue
+        try {
+          const res = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(500) })
+          if (res.ok) {
+            const h = await res.json() as { jdbcUrl?: string }
+            bridges.push({ port, pid: 0, status: 'active', jdbcUrl: h.jdbcUrl })
+          }
+        } catch { /* not a bridge */ }
+      }
+
       return Response.json({
         ok: true,
         jars: listJarFiles(),
         dialects: getJdbcDialectStatus(),
+        bridges,
       })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erreur serveur'
@@ -105,22 +167,37 @@ export function createUploadJarHandlers() {
 
       if (action === 'stop') {
         const bridgePort = body.port || 8765
-        // Kill bridge on the given port
+        const bridgePid = body.pid || 0
         try {
+          // 1. Try BridgeManager
           const { BridgeManager } = await import('@mostajs/orm')
           const manager = BridgeManager.getInstance()
           const bridges = manager.list()
           const bridge = bridges.find((b: { port: number }) => b.port === bridgePort)
           if (bridge) {
             await manager.stop(bridge.key)
-            return Response.json({ ok: true, message: `Bridge arrete sur le port ${bridgePort}` })
           }
-          // Fallback: kill process on port
+
+          // 2. Kill by PID if provided
+          if (bridgePid > 0) {
+            try { process.kill(bridgePid, 'SIGKILL') } catch { /* already dead */ }
+          }
+
+          // 3. Fallback: kill process on port
           const { execSync } = await import('child_process')
           try {
             execSync(`fuser -k ${bridgePort}/tcp 2>/dev/null`, { stdio: 'ignore' })
           } catch { /* port may already be free */ }
-          return Response.json({ ok: true, message: `Port ${bridgePort} libere` })
+
+          // 4. Clean PID file
+          try {
+            const { existsSync, unlinkSync } = await import('fs')
+            const { join } = await import('path')
+            const pidFile = join(process.env.MOSTA_JAR_DIR || join(process.cwd(), 'jar_files'), `.bridge-${bridgePort}.pid`)
+            if (existsSync(pidFile)) unlinkSync(pidFile)
+          } catch { /* non-critical */ }
+
+          return Response.json({ ok: true, message: `Bridge arrete (port ${bridgePort})` })
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : 'Erreur'
           return Response.json({ ok: false, error: msg })

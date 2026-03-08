@@ -281,6 +281,8 @@ async function fetchRetry(url: string, init: RequestInit, retries = 3, delay = 2
 
 // ── JAR Upload Sub-component ─────────────────────────────────
 
+interface BridgeInfo { port: number; pid: number; status: string; jdbcUrl?: string }
+
 function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
   dialect: Dialect; jarEndpoint: string; dbConfig: DbConfig
 }) {
@@ -289,18 +291,26 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
   const [bridgePort, setBridgePort] = useState<number | null>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [jarStatus, setJarStatus] = useState<{ hasJar: boolean; jarFile: string | null } | null>(null)
+  const [bridges, setBridges] = useState<BridgeInfo[]>([])
+  const [killingPort, setKillingPort] = useState<number | null>(null)
 
-  useEffect(() => {
+  const loadStatus = useCallback(() => {
     fetch(jarEndpoint)
       .then(r => r.json())
       .then(data => {
         if (data.ok) {
           const s = data.dialects?.find((d: { dialect: string }) => d.dialect === dialect)
           setJarStatus(s || { hasJar: false, jarFile: null })
+          setBridges(data.bridges || [])
+          // If a bridge is active, track its port
+          const active = (data.bridges || []).find((b: BridgeInfo) => b.status === 'active')
+          if (active) setBridgePort(active.port)
         }
       })
       .catch(() => {})
   }, [dialect, jarEndpoint])
+
+  useEffect(() => { loadStatus() }, [loadStatus])
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -339,6 +349,7 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
       if (result.ok) {
         setBridgePort(result.port || 8765)
         setMessage({ ok: true, text: `Bridge JDBC lance sur le port ${result.port || 8765}` })
+        loadStatus()
       } else {
         setMessage({ ok: false, text: result.error || 'Echec lancement du bridge' })
       }
@@ -349,26 +360,27 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
     }
   }
 
-  const handleStopBridge = async () => {
-    setBridgeLoading(true)
+  const handleStopBridge = async (port: number, pid: number) => {
+    setKillingPort(port)
     setMessage(null)
     try {
       const res = await fetch(jarEndpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'stop', port: bridgePort || 8765 }),
+        body: JSON.stringify({ action: 'stop', port, pid }),
       })
       const result = await res.json()
       if (result.ok) {
-        setBridgePort(null)
+        if (bridgePort === port) setBridgePort(null)
         setMessage({ ok: true, text: result.message || 'Bridge arrete' })
+        loadStatus()
       } else {
         setMessage({ ok: false, text: result.error || 'Echec arret du bridge' })
       }
     } catch {
       setMessage({ ok: false, text: 'Erreur reseau' })
     } finally {
-      setBridgeLoading(false)
+      setKillingPort(null)
     }
   }
 
@@ -390,7 +402,7 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
           {uploading ? 'Upload...' : 'Uploader un .jar'}
           <input type="file" accept=".jar" onChange={handleUpload} disabled={uploading} style={{ display: 'none' }} />
         </label>
-        {jarStatus?.hasJar && !bridgePort && (
+        {jarStatus?.hasJar && bridges.length === 0 && (
           <button
             style={{ ...S.btn('primary', bridgeLoading), fontSize: 12, padding: '6px 12px', backgroundColor: bridgeLoading ? '#6b7280' : '#059669' }}
             onClick={handleStartBridge}
@@ -399,17 +411,41 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
             {bridgeLoading ? 'Lancement...' : 'Lancer le bridge'}
           </button>
         )}
-        {bridgePort && (
-          <button
-            style={{ ...S.btn('primary', bridgeLoading), fontSize: 12, padding: '6px 12px', backgroundColor: bridgeLoading ? '#6b7280' : '#dc2626' }}
-            onClick={handleStopBridge}
-            disabled={bridgeLoading}
-          >
-            {bridgeLoading ? 'Arret...' : 'Arreter le bridge'}
-          </button>
-        )}
         <span style={{ fontSize: 11, color: '#9ca3af' }}>Ex: hsqldb*.jar, ojdbc*.jar, db2jcc*.jar</span>
       </div>
+      {/* Active bridges list */}
+      {bridges.length > 0 && (
+        <div style={{ marginTop: 8, padding: '8px 10px', backgroundColor: '#f0fdf4', borderRadius: 6, border: '1px solid #bbf7d0' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#166534', marginBottom: 4 }}>Bridges actifs</div>
+          {bridges.map(b => (
+            <div key={b.port} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: b.status === 'active' ? '#22c55e' : '#f59e0b', flexShrink: 0 }} />
+              <span style={{ color: '#374151', fontFamily: 'monospace', fontSize: 11 }}>
+                :{b.port} {b.pid > 0 ? `(PID ${b.pid})` : ''} {b.jdbcUrl ? `— ${b.jdbcUrl}` : ''}
+              </span>
+              <button
+                style={{
+                  ...S.btn('primary', killingPort === b.port), fontSize: 11, padding: '2px 8px',
+                  backgroundColor: killingPort === b.port ? '#6b7280' : '#dc2626', marginLeft: 'auto',
+                }}
+                onClick={() => handleStopBridge(b.port, b.pid)}
+                disabled={killingPort === b.port}
+              >
+                {killingPort === b.port ? '...' : 'Kill'}
+              </button>
+            </div>
+          ))}
+          {bridges.length === 0 || bridges.some(b => b.status === 'active') ? null : (
+            <button
+              style={{ ...S.btn('primary', bridgeLoading), fontSize: 12, padding: '6px 12px', backgroundColor: '#059669', marginTop: 6 }}
+              onClick={handleStartBridge}
+              disabled={bridgeLoading}
+            >
+              {bridgeLoading ? 'Lancement...' : 'Lancer le bridge'}
+            </button>
+          )}
+        </div>
+      )}
       {message && (
         <p style={{ fontSize: 12, color: message.ok ? '#059669' : '#dc2626', marginTop: 8 }}>{message.text}</p>
       )}
