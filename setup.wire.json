@@ -1,0 +1,11 @@
+{
+  "_doc": "Manifeste de câblage pour @mostajs/setup",
+  "package": "@mostajs/setup",
+  "version": "1.4.10",
+  "type": "functional",
+
+  "menu": {
+    "name": "setupMenuContribution",
+    "from": "@mostajs/setup/lib/menu"
+  }
+}
