@@ -56,6 +56,7 @@ export interface SetupWizardProps {
     installModules?: string
     install?: string
     uploadJar?: string
+    wireModule?: string
   }
   /** Default database name prefix (e.g. 'secuaccessdb') */
   dbNamePrefix?: string
@@ -241,6 +242,40 @@ const S = {
   flex: (gap = 8) => ({ display: 'flex', alignItems: 'center', gap }) as const,
   flexBetween: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } as const,
   flexWrap: { display: 'flex', flexWrap: 'wrap' as const, gap: 8 } as const,
+  // Wire module styles
+  wireGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, marginTop: 16 } as const,
+  wireCard: (installed: boolean) => ({
+    padding: 16,
+    border: `2px solid ${installed ? '#059669' : '#e5e7eb'}`,
+    borderRadius: 10,
+    backgroundColor: installed ? '#f0fdf4' : '#fafafa',
+    transition: 'all 0.2s',
+    display: 'flex' as const,
+    flexDirection: 'column' as const,
+    gap: 8,
+  }),
+  wireStatus: (installed: boolean) => ({
+    display: 'inline-block',
+    width: 10,
+    height: 10,
+    borderRadius: '50%',
+    backgroundColor: installed ? '#22c55e' : '#ef4444',
+    marginRight: 6,
+    flexShrink: 0,
+  }),
+  toggleBtn: (installed: boolean, busy: boolean) => ({
+    padding: '6px 16px',
+    border: 'none',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 700 as const,
+    cursor: busy ? 'wait' : 'pointer',
+    opacity: busy ? 0.6 : 1,
+    backgroundColor: installed ? '#dc2626' : '#059669',
+    color: '#fff',
+    transition: 'all 0.2s',
+    minWidth: 90,
+  }),
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -498,6 +533,7 @@ export default function SetupWizard({
     installModules: endpoints.installModules || '/api/setup/install-modules',
     install: endpoints.install || '/api/setup/install',
     uploadJar: endpoints.uploadJar || '/api/setup/upload-jar',
+    wireModule: endpoints.wireModule || '/api/setup/wire-module',
   }
 
   // --- State ---
@@ -516,6 +552,13 @@ export default function SetupWizard({
   const [installing, setInstalling] = useState(false)
   const [installResult, setInstallResult] = useState<{ ok: boolean; needsRestart?: boolean; error?: string } | null>(null)
   const [hydrated, setHydrated] = useState(false)
+
+  // Wire modules
+  interface WireModule { name: string; source: string; package: string; version: string; type: string; installed: boolean }
+  const [wireModules, setWireModules] = useState<WireModule[]>([])
+  const [wireLoading, setWireLoading] = useState(false)
+  const [wireBusy, setWireBusy] = useState<string | null>(null)
+  const [wireMessage, setWireMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const step: Step = STEPS[currentStep]
 
@@ -588,6 +631,55 @@ export default function SetupWizard({
       }
     })
   }, [availableModules])
+
+  // --- Wire modules (load after installation success) ---
+  const loadWireModules = useCallback(async () => {
+    setWireLoading(true)
+    try {
+      const res = await fetch(ep.wireModule)
+      const data = await res.json()
+      if (data.data) setWireModules(data.data)
+    } catch {
+      // wire endpoint may not exist
+    } finally {
+      setWireLoading(false)
+    }
+  }, [ep.wireModule])
+
+  // Auto-load wire modules on modules step and after install
+  useEffect(() => {
+    if (step === 'modules' || installResult?.ok) loadWireModules()
+  }, [step, installResult?.ok, loadWireModules])
+
+  const handleWireToggle = async (mod: WireModule) => {
+    const action = mod.installed ? 'uninstall' : 'install'
+    setWireBusy(mod.name)
+    setWireMessage(null)
+    try {
+      const res = await fetch(ep.wireModule, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, module: mod.name }),
+      })
+      const data = await res.json()
+      if (data.data?.ok) {
+        setWireMessage({
+          type: 'success',
+          text: action === 'install'
+            ? `${mod.package} cable avec succes`
+            : `${mod.package} decable avec succes`,
+        })
+        await loadWireModules()
+      } else {
+        const errMsg = data.error?.message || 'Erreur'
+        setWireMessage({ type: 'error', text: `${action} ${mod.package}: ${errMsg}` })
+      }
+    } catch {
+      setWireMessage({ type: 'error', text: 'Erreur reseau' })
+    } finally {
+      setWireBusy(null)
+    }
+  }
 
   // --- Dialect select ---
   function selectDialect(d: Dialect) {
@@ -768,6 +860,69 @@ export default function SetupWizard({
                     </div>
                   )
                 })}
+              </div>
+
+              {/* ─── Wire Module Grid (ON/OFF) ─── */}
+              <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid #e5e7eb' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span style={{ fontSize: 18 }}>🔌</span>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Cablage des modules</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>
+                      Cablez les modules pour injecter schemas, routes API, pages et permissions.
+                    </div>
+                  </div>
+                </div>
+
+                {wireMessage && (
+                  <div style={S.alert(wireMessage.type)}>{wireMessage.text}</div>
+                )}
+
+                {wireLoading ? (
+                  <div style={{ textAlign: 'center', padding: 12, color: '#6b7280' }}>Chargement des manifestes...</div>
+                ) : wireModules.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 12, color: '#9ca3af', fontSize: 13 }}>
+                    Aucun manifeste de cablage trouve. Les manifestes seront disponibles apres l'installation.
+                  </div>
+                ) : (
+                  <div style={S.wireGrid}>
+                    {wireModules.map((mod) => (
+                      <div key={mod.name} style={S.wireCard(mod.installed)}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={S.wireStatus(mod.installed)} />
+                            <span style={{ fontWeight: 700, fontSize: 14 }}>@mostajs/{mod.name}</span>
+                          </div>
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+                            backgroundColor: mod.type === 'business' ? '#dbeafe' : '#f3e8ff',
+                            color: mod.type === 'business' ? '#1e40af' : '#6b21a8',
+                          }}>
+                            {mod.type}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#6b7280', fontFamily: 'monospace' }}>
+                          v{mod.version}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: mod.installed ? '#059669' : '#6b7280' }}>
+                            {mod.installed ? 'ON' : 'OFF'}
+                          </span>
+                          <button
+                            style={S.toggleBtn(mod.installed, wireBusy === mod.name)}
+                            onClick={(e) => { e.stopPropagation(); handleWireToggle(mod) }}
+                            disabled={wireBusy !== null}
+                          >
+                            {wireBusy === mod.name
+                              ? (mod.installed ? 'Decablage...' : 'Cablage...')
+                              : (mod.installed ? 'Desinstaller' : 'Installer')
+                            }
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div style={S.navRow}>
@@ -1095,6 +1250,67 @@ export default function SetupWizard({
                     </>
                   ) : (
                     <div>❌ {installResult.error}</div>
+                  )}
+                </div>
+              )}
+
+              {/* Wire Modules — shown after successful installation */}
+              {installResult?.ok && (
+                <div style={{ ...S.summaryCard, marginTop: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <span style={{ fontSize: 18 }}>🔌</span>
+                    <div style={S.summaryTitle}>Cablage des modules</div>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+                    Cablez les modules pour injecter schemas, routes API, pages et permissions dans l'application.
+                  </div>
+
+                  {wireMessage && (
+                    <div style={S.alert(wireMessage.type)}>{wireMessage.text}</div>
+                  )}
+
+                  {wireLoading ? (
+                    <div style={{ textAlign: 'center', padding: 12, color: '#6b7280' }}>Chargement...</div>
+                  ) : wireModules.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 12, color: '#9ca3af' }}>Aucun manifeste de cablage trouve</div>
+                  ) : (
+                    <div style={S.wireGrid}>
+                      {wireModules.map((mod) => (
+                        <div key={mod.name} style={S.wireCard(mod.installed)}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={S.wireStatus(mod.installed)} />
+                              <span style={{ fontWeight: 700, fontSize: 14 }}>@mostajs/{mod.name}</span>
+                            </div>
+                            <span style={{
+                              fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+                              backgroundColor: mod.type === 'business' ? '#dbeafe' : '#f3e8ff',
+                              color: mod.type === 'business' ? '#1e40af' : '#6b21a8',
+                            }}>
+                              {mod.type}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 12, color: '#6b7280', fontFamily: 'monospace' }}>
+                            v{mod.version} — {mod.source}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: mod.installed ? '#059669' : '#6b7280' }}>
+                              {mod.installed ? 'Cable' : 'Non cable'}
+                            </span>
+                            <button
+                              style={S.toggleBtn(mod.installed, wireBusy === mod.name)}
+                              onClick={() => handleWireToggle(mod)}
+                              disabled={wireBusy !== null}
+                            >
+                              {wireBusy === mod.name
+                                ? (mod.installed ? 'Decablage...' : 'Cablage...')
+                                : (mod.installed ? 'Desinstaller' : 'Installer')
+                              }
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}

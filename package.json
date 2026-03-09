@@ -1,6 +1,6 @@
 {
   "name": "@mostajs/setup",
-  "version": "1.4.11",
+  "version": "1.4.12",
   "description": "Reusable setup wizard module — multi-dialect DB configuration, .env.local writer, seed runner",
   "author": "Dr Hamid MADANI <drmdh@msn.com>",
   "license": "MIT",
@@ -57,6 +57,11 @@
       "types": "./dist/api/upload-jar.route.d.ts",
       "import": "./dist/api/upload-jar.route.js",
       "default": "./dist/api/upload-jar.route.js"
+    },
+    "./api/wire-module": {
+      "types": "./dist/api/wire-module.route.d.ts",
+      "import": "./dist/api/wire-module.route.js",
+      "default": "./dist/api/wire-module.route.js"
     }
   },
   "files": [
@@ -99,10 +104,14 @@
   },
   "peerDependencies": {
     "@mostajs/menu": ">=1.0.2",
+    "@mostajs/socle": ">=1.0.0",
     "react": ">=18.0.0"
   },
   "peerDependenciesMeta": {
     "@mostajs/menu": {
+      "optional": true
+    },
+    "@mostajs/socle": {
       "optional": true
     },
     "react": {

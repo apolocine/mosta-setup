@@ -70,6 +70,8 @@ export interface ReconfigPanelProps {
   detectEndpoint?: string
   /** API endpoint for JAR upload (default: '/api/setup/upload-jar') */
   jarEndpoint?: string
+  /** API endpoint for wire module install/uninstall (default: '/api/setup/wire-module') */
+  wireEndpoint?: string
   /** Translate function */
   t?: (key: string) => string
   /** Called after successful DB change */
@@ -165,6 +167,38 @@ const S = {
   }),
   checkbox: { marginRight: 8, width: 16, height: 16, cursor: 'pointer' } as const,
   checkboxLabel: { display: 'flex', alignItems: 'center', fontSize: 13, cursor: 'pointer', padding: '8px 0' } as const,
+  toggleBtn: (installed: boolean, busy: boolean) => ({
+    padding: '6px 16px',
+    border: 'none',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 700 as const,
+    cursor: busy ? 'wait' : 'pointer',
+    opacity: busy ? 0.6 : 1,
+    backgroundColor: installed ? '#dc2626' : '#059669',
+    color: '#fff',
+    transition: 'all 0.2s',
+    minWidth: 90,
+  }),
+  wireCard: (installed: boolean) => ({
+    padding: 16,
+    border: `2px solid ${installed ? '#059669' : '#e5e7eb'}`,
+    borderRadius: 10,
+    backgroundColor: installed ? '#f0fdf4' : '#fafafa',
+    transition: 'all 0.2s',
+    display: 'flex' as const,
+    flexDirection: 'column' as const,
+    gap: 8,
+  }),
+  wireStatus: (installed: boolean) => ({
+    display: 'inline-block',
+    width: 10,
+    height: 10,
+    borderRadius: '50%',
+    backgroundColor: installed ? '#22c55e' : '#ef4444',
+    marginRight: 6,
+    flexShrink: 0,
+  }),
   currentBadge: {
     display: 'inline-block',
     padding: '2px 8px',
@@ -183,6 +217,7 @@ export default function ReconfigPanel({
   apiEndpoint = '/api/setup/reconfig',
   detectEndpoint = '/api/setup/detect-modules',
   jarEndpoint = '/api/setup/upload-jar',
+  wireEndpoint = '/api/setup/wire-module',
   t = (k) => k,
   onDbChanged,
   onModulesChanged,
@@ -222,6 +257,13 @@ export default function ReconfigPanel({
   // Module saving
   const [moduleSaving, setModuleSaving] = useState(false)
   const [moduleMessage, setModuleMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Wire modules
+  interface WireModule { name: string; source: string; package: string; version: string; type: string; installed: boolean }
+  const [wireModules, setWireModules] = useState<WireModule[]>([])
+  const [wireLoading, setWireLoading] = useState(true)
+  const [wireBusy, setWireBusy] = useState<string | null>(null)
+  const [wireMessage, setWireMessage] = useState<{ type: 'success' | 'error'; text: string; module?: string } | null>(null)
 
   // --- Load current config ---
   const loadConfig = useCallback(async () => {
@@ -279,6 +321,54 @@ export default function ReconfigPanel({
   }, [apiEndpoint, detectEndpoint, jarEndpoint])
 
   useEffect(() => { loadConfig() }, [loadConfig])
+
+  // --- Load wire modules ---
+  const loadWireModules = useCallback(async () => {
+    setWireLoading(true)
+    try {
+      const res = await fetch(wireEndpoint)
+      const data = await res.json()
+      if (data.data) setWireModules(data.data)
+    } catch {
+      // wire endpoint may not exist
+    } finally {
+      setWireLoading(false)
+    }
+  }, [wireEndpoint])
+
+  useEffect(() => { loadWireModules() }, [loadWireModules])
+
+  // --- Toggle wire module install/uninstall ---
+  const handleWireToggle = async (mod: WireModule) => {
+    const action = mod.installed ? 'uninstall' : 'install'
+    setWireBusy(mod.name)
+    setWireMessage(null)
+    try {
+      const res = await fetch(wireEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, module: mod.name }),
+      })
+      const data = await res.json()
+      if (data.data?.ok) {
+        setWireMessage({
+          type: 'success',
+          text: action === 'install'
+            ? `${mod.package} cable avec succes`
+            : `${mod.package} decable avec succes`,
+          module: mod.name,
+        })
+        await loadWireModules()
+      } else {
+        const errMsg = data.error?.message || data.data?.steps?.find((s: { status: string }) => s.status === 'error')?.detail || 'Erreur'
+        setWireMessage({ type: 'error', text: `${action} ${mod.package}: ${errMsg}`, module: mod.name })
+      }
+    } catch {
+      setWireMessage({ type: 'error', text: 'Erreur reseau', module: mod.name })
+    } finally {
+      setWireBusy(null)
+    }
+  }
 
   // --- JAR upload ---
   const handleJarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -495,6 +585,68 @@ export default function ReconfigPanel({
 
   return (
     <div style={S.panel}>
+      {/* ─── Section 0: Wire Modules (Install/Uninstall) ─── */}
+      <div style={S.section}>
+        <div style={S.sectionTitle}>
+          <span>🔌</span> Cablage des modules
+        </div>
+        <div style={S.sectionDesc}>
+          Installez ou desinstallez les modules @mostajs. Un module cable injecte ses schemas, routes API, pages,
+          permissions et menus dans l'application hote. Les modules business (schemas + repos) sont marques.
+        </div>
+
+        {wireMessage && (
+          <div style={S.alert(wireMessage.type)}>{wireMessage.text}</div>
+        )}
+
+        {wireLoading ? (
+          <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Chargement des manifestes...</div>
+        ) : wireModules.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 20, color: '#9ca3af' }}>Aucun manifeste de cablage trouve</div>
+        ) : (
+          <div style={S.grid}>
+            {wireModules.map((mod) => (
+              <div key={mod.name} style={S.wireCard(mod.installed)}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={S.wireStatus(mod.installed)} />
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>@mostajs/{mod.name}</span>
+                  </div>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    backgroundColor: mod.type === 'business' ? '#dbeafe' : '#f3e8ff',
+                    color: mod.type === 'business' ? '#1e40af' : '#6b21a8',
+                  }}>
+                    {mod.type}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280', fontFamily: 'monospace' }}>
+                  v{mod.version} — {mod.source}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: mod.installed ? '#059669' : '#6b7280' }}>
+                    {mod.installed ? 'Cable' : 'Non cable'}
+                  </span>
+                  <button
+                    style={S.toggleBtn(mod.installed, wireBusy === mod.name)}
+                    onClick={() => handleWireToggle(mod)}
+                    disabled={wireBusy !== null}
+                  >
+                    {wireBusy === mod.name
+                      ? (mod.installed ? 'Decablage...' : 'Cablage...')
+                      : (mod.installed ? 'Desinstaller' : 'Installer')
+                    }
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* ─── Section 1: Modules ─── */}
       <div style={S.section}>
         <div style={S.sectionTitle}>
