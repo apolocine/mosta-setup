@@ -397,9 +397,12 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
         <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#fef9c3', borderRadius: 6, border: '1px solid #fde68a' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 6 }}>
             Serveur HSQLDB
+            <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 4 }}>
+              (port SGBD : {dbConfig.port || 9001})
+            </span>
             {serverInfo?.running && (
               <span style={{ fontWeight: 400, color: '#059669', marginLeft: 8 }}>
-                En marche (port {serverInfo.port}{serverInfo.pid > 0 ? `, PID ${serverInfo.pid}` : ''})
+                En marche sur port {serverInfo.port}{serverInfo.pid > 0 ? ` — PID ${serverInfo.pid}` : ''}
               </span>
             )}
             {!serverInfo?.running && (
@@ -409,10 +412,10 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               style={btnSmall('#059669', loading === 'start-server' || serverInfo?.running)}
-              onClick={() => patchAction({ action: 'start-server', dialect, name: dbConfig.name, host: dbConfig.host, port: dbConfig.port }, 'start-server')}
+              onClick={() => patchAction({ action: 'start-server', dialect, name: dbConfig.name, host: dbConfig.host, port: dbConfig.port || 9001 }, 'start-server')}
               disabled={loading === 'start-server' || !!serverInfo?.running}
             >
-              {loading === 'start-server' ? 'Demarrage...' : 'Demarrer le serveur'}
+              {loading === 'start-server' ? 'Demarrage...' : `Demarrer le serveur (port ${dbConfig.port || 9001})`}
             </button>
             <button
               style={btnSmall('#dc2626', loading === 'stop-server' || !serverInfo?.running)}
@@ -425,13 +428,22 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
         </div>
       )}
 
-      {/* ── Row 4: Bridge control ── */}
+      {/* ── Row 4: Bridge JDBC control ── */}
       {jarStatus?.hasJar && (
         <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#f0fdf4', borderRadius: 6, border: '1px solid #bbf7d0' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 6 }}>
             Bridge JDBC
-            {bridgePort && <span style={{ fontWeight: 400, marginLeft: 8 }}>Actif port {bridgePort}</span>}
-            {!bridgePort && bridges.length === 0 && <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>Inactif</span>}
+            <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 4 }}>
+              (port bridge : {bridgePort || 8765})
+            </span>
+            {bridgePort && (
+              <span style={{ fontWeight: 400, color: '#059669', marginLeft: 8 }}>
+                Actif sur port {bridgePort}
+              </span>
+            )}
+            {!bridgePort && bridges.length === 0 && (
+              <span style={{ fontWeight: 400, color: '#dc2626', marginLeft: 8 }}>Inactif</span>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: bridges.length > 0 ? 8 : 0 }}>
             <button
@@ -439,7 +451,7 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
               onClick={() => patchAction({ action: 'start', dialect, ...dbConfig }, 'start-bridge')}
               disabled={loading === 'start-bridge' || bridges.length > 0}
             >
-              {loading === 'start-bridge' ? 'Lancement...' : 'Lancer le bridge'}
+              {loading === 'start-bridge' ? 'Lancement...' : `Lancer le bridge (SGBD ${dbConfig.host || 'localhost'}:${dbConfig.port || 9001})`}
             </button>
           </div>
           {/* Bridge list */}
@@ -447,7 +459,7 @@ function JarUploadInline({ dialect, jarEndpoint, dbConfig }: {
             <div key={b.port} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: b.status === 'active' ? '#22c55e' : '#f59e0b', flexShrink: 0 }} />
               <span style={{ color: '#374151', fontFamily: 'monospace', fontSize: 11 }}>
-                :{b.port} {b.pid > 0 ? `(PID ${b.pid})` : ''} {b.jdbcUrl ? `— ${b.jdbcUrl}` : ''}
+                Bridge port :{b.port} {b.pid > 0 ? `(PID ${b.pid})` : ''} {b.jdbcUrl ? `— ${b.jdbcUrl}` : ''}
               </span>
               <button
                 style={{ ...btnSmall('#dc2626', loading === `kill-${b.port}`), fontSize: 11, padding: '2px 8px', marginLeft: 'auto' }}

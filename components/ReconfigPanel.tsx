@@ -213,6 +213,12 @@ export default function ReconfigPanel({
   const [jarFiles, setJarFiles] = useState<{ fileName: string; dialect: string | null; label: string | null }[]>([])
   const [jdbcStatus, setJdbcStatus] = useState<{ dialect: string; label: string; hasJar: boolean; jarFile: string | null }[]>([])
 
+  // Bridge & Server state
+  const [bridges, setBridges] = useState<{ port: number; pid: number; status: string; jdbcUrl?: string }[]>([])
+  const [serverInfo, setServerInfo] = useState<{ running: boolean; port: number; pid: number } | null>(null)
+  const [bridgeLoading, setBridgeLoading] = useState<string | null>(null)
+  const [bridgeMessage, setBridgeMessage] = useState<{ ok: boolean; text: string } | null>(null)
+
   // Module saving
   const [moduleSaving, setModuleSaving] = useState(false)
   const [moduleMessage, setModuleMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -251,13 +257,16 @@ export default function ReconfigPanel({
           password: '',
         })
       }
-      // Load JAR status
+      // Load JAR status + bridges + server
       try {
         const jarRes = await fetch(jarEndpoint)
         const jarData = await jarRes.json()
         if (jarData.ok) {
           setJarFiles(jarData.jars || [])
           setJdbcStatus(jarData.dialects || [])
+          setBridges(jarData.bridges || [])
+          if (jarData.hsqldbServer) setServerInfo(jarData.hsqldbServer)
+          else setServerInfo(null)
         }
       } catch {
         // JAR endpoint may not exist — ignore
