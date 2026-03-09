@@ -30,7 +30,7 @@ export async function needsSetup(countUsers: () => Promise<number>): Promise<boo
 export async function runInstall(
   installConfig: InstallConfig,
   setupConfig: MostaSetupConfig,
-): Promise<{ ok: boolean; error?: string; needsRestart: boolean; seeded?: string[] }> {
+): Promise<{ ok: boolean; error?: string; needsRestart: boolean; seeded?: string[]; jdbcInfo?: string }> {
   try {
     // 1. Compose URI and write .env.local
     const uri = composeDbUri(installConfig.dialect, installConfig.db)
@@ -45,14 +45,28 @@ export async function runInstall(
       port: setupConfig.defaultPort,
     })
 
-    // 2. Set process.env in-memory
+    // 2. For JDBC dialects, persist bridge port so app always reconnects to the same bridge
+    const JDBC_DIALECTS = ['hsqldb', 'oracle', 'db2', 'hana', 'sybase']
+    if (JDBC_DIALECTS.includes(installConfig.dialect)) {
+      const bridgePort = process.env.MOSTA_BRIDGE_PORT_BASE || '8765'
+      extraVars['MOSTA_BRIDGE_PORT_BASE'] = bridgePort
+      // Re-write env with bridge port
+      await writeEnvLocal({
+        dialect: installConfig.dialect,
+        uri,
+        extraVars,
+        port: setupConfig.defaultPort,
+      })
+    }
+
+    // 3. Set process.env in-memory
     process.env.DB_DIALECT = installConfig.dialect
     process.env.SGBD_URI = uri
     if (installConfig.dialect !== 'mongodb') {
       process.env.DB_SCHEMA_STRATEGY = 'update'
     }
 
-    // 3. Disconnect existing dialect singleton
+    // 4. Disconnect existing dialect singleton
     const { disconnectDialect } = await import('@mostajs/orm')
     await disconnectDialect()
 
@@ -86,7 +100,12 @@ export async function runInstall(
       }
     }
 
-    return { ok: true, needsRestart, seeded }
+    // For JDBC dialects, add info about bridge/server requirements
+    const jdbcInfo = JDBC_DIALECTS.includes(installConfig.dialect)
+      ? `Le serveur ${installConfig.dialect.toUpperCase()} et le bridge JDBC doivent rester actifs.`
+      : undefined
+
+    return { ok: true, needsRestart, seeded, jdbcInfo }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur installation'
     return { ok: false, error: message, needsRestart: false }
