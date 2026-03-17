@@ -67,8 +67,19 @@ export interface SetupJson {
     dbNamePrefix?: string
   }
   env?: Record<string, string>
+  modules?: SetupJsonModule[]
   rbac?: SetupJsonRbac
   seeds?: SetupJsonSeed[]
+}
+
+export interface SetupJsonModule {
+  key: string
+  packageName: string
+  label?: string
+  description?: string
+  icon?: string
+  required?: boolean
+  dependsOn?: string[]
 }
 
 // ── Loader ───────────────────────────────────────────────
@@ -137,10 +148,16 @@ function validate(json: SetupJson): void {
 }
 
 function buildConfig(json: SetupJson, repoFactory?: (collection: string) => Promise<GenericRepo>): MostaSetupConfig {
+  // Derive MOSTAJS_MODULES from modules[] section
+  const extraEnvVars: Record<string, string> = { ...(json.env ?? {}) }
+  if (json.modules?.length) {
+    extraEnvVars.MOSTAJS_MODULES = json.modules.map(m => m.key).join(',')
+  }
+
   const config: MostaSetupConfig = {
     appName: json.app.name,
     defaultPort: json.app.port,
-    extraEnvVars: json.env ? { ...json.env } : undefined,
+    extraEnvVars: Object.keys(extraEnvVars).length > 0 ? extraEnvVars : undefined,
   }
 
   // ── seedRBAC ───────────────────────────────────────────
