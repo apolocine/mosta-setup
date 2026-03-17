@@ -79,7 +79,8 @@ export async function runInstall(
 
     // 5. Create admin user
     if (setupConfig.createAdmin) {
-      const bcrypt = await import('bcryptjs')
+      const bcryptModule = await import('bcryptjs')
+      const bcrypt = bcryptModule.default || bcryptModule
       const hashedPassword = await bcrypt.hash(installConfig.admin.password, 12)
       await setupConfig.createAdmin({
         email: installConfig.admin.email,
@@ -90,8 +91,11 @@ export async function runInstall(
       seeded.push('admin')
     }
 
-    // 6. Optional seeds
-    if (setupConfig.optionalSeeds && installConfig.seed) {
+    // 6. Optional seeds (runtime registry or legacy)
+    if (setupConfig.runModuleSeeds) {
+      await setupConfig.runModuleSeeds(installConfig.modules)
+      seeded.push('module-seeds')
+    } else if (setupConfig.optionalSeeds && installConfig.seed) {
       for (const seedDef of setupConfig.optionalSeeds) {
         if (installConfig.seed[seedDef.key]) {
           await seedDef.run({})

@@ -57,6 +57,8 @@ export interface SetupWizardProps {
     install?: string
     uploadJar?: string
     wireModule?: string
+    /** Seed endpoint — runs module seeds from the runtime registry */
+    seed?: string
   }
   /** Default database name prefix (e.g. 'secuaccessdb') */
   dbNamePrefix?: string
@@ -534,6 +536,7 @@ export default function SetupWizard({
     install: endpoints.install || '/api/setup/install',
     uploadJar: endpoints.uploadJar || '/api/setup/upload-jar',
     wireModule: endpoints.wireModule || '/api/setup/wire-module',
+    seed: endpoints.seed || '/api/setup/seed',
   }
 
   // --- State ---

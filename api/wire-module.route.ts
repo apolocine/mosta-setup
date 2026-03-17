@@ -36,19 +36,23 @@ export function createWireModuleHandler() {
     }
 
     try {
-      // Dynamic import to avoid hard dependency on @mostajs/socle
-      // Dynamic import — string indirection to avoid TS static resolution
-      const pkg = '@mostajs' + '/socle'
-      const socle = await import(/* webpackIgnore: true */ pkg)
+      // Dynamic import from specific paths to avoid barrel missing exports
+      const installPkg = '@mostajs' + '/socle/lib/install-module'
+      const uninstallPkg = '@mostajs' + '/socle/lib/uninstall-module'
       const logs: string[] = []
       const opts = {
         projectRoot: process.cwd(),
         log: (msg: string) => logs.push(msg),
       }
 
-      const result = action === 'install'
-        ? socle.installModule(moduleName, opts)
-        : socle.uninstallModule(moduleName, opts)
+      let result: any
+      if (action === 'install') {
+        const mod = await import(/* webpackIgnore: true */ installPkg)
+        result = mod.installModule(moduleName, opts)
+      } else {
+        const mod = await import(/* webpackIgnore: true */ uninstallPkg)
+        result = mod.uninstallModule(moduleName, opts)
+      }
 
       return Response.json({
         data: {
@@ -104,20 +108,25 @@ export function createWireModuleHandler() {
           const wireFile = path.join(mostaDir, dir, `${dir}.wire.json`)
           if (fs.existsSync(wireFile)) {
             const manifest = JSON.parse(fs.readFileSync(wireFile, 'utf8'))
-            // Check if already wired by looking at schemas or permissions in host files
-            const permFile = path.join(root, 'src/lib/permissions.ts')
-            let installed = false
-            if (manifest.permissions?.permissionsConst && fs.existsSync(permFile)) {
-              installed = fs.readFileSync(permFile, 'utf8').includes(manifest.permissions.permissionsConst)
-            } else if (manifest.schemas?.exports?.[0]) {
-              const regFile = path.join(root, 'src/dal/registry.ts')
-              if (fs.existsSync(regFile)) {
-                installed = fs.readFileSync(regFile, 'utf8').includes(manifest.schemas.exports[0])
-              }
-            } else if (manifest.menu?.name) {
-              const sidebarFile = path.join(root, 'src/components/layout/Sidebar.tsx')
-              if (fs.existsSync(sidebarFile)) {
-                installed = fs.readFileSync(sidebarFile, 'utf8').includes(manifest.menu.name)
+            // Check if already wired — primary: package in dependencies
+            const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+            let installed = !!pkg.dependencies?.[manifest.package]
+
+            // Fallback: check host source files for legacy codegen markers
+            if (!installed) {
+              const permFile = path.join(root, 'src/lib/permissions.ts')
+              if (manifest.permissions?.permissionsConst && fs.existsSync(permFile)) {
+                installed = fs.readFileSync(permFile, 'utf8').includes(manifest.permissions.permissionsConst)
+              } else if (manifest.schemas?.exports?.[0]) {
+                const regFile = path.join(root, 'src/dal/registry.ts')
+                if (fs.existsSync(regFile)) {
+                  installed = fs.readFileSync(regFile, 'utf8').includes(manifest.schemas.exports[0])
+                }
+              } else if (manifest.menu?.name) {
+                const sidebarFile = path.join(root, 'src/components/layout/Sidebar.tsx')
+                if (fs.existsSync(sidebarFile)) {
+                  installed = fs.readFileSync(sidebarFile, 'utf8').includes(manifest.menu.name)
+                }
               }
             }
             found.push({

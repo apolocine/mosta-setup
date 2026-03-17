@@ -12,7 +12,7 @@ export function composeDbUri(dialect: DialectType, config: DbConfig): string {
 
   switch (dialect) {
     case 'mongodb':
-      if (user && password) return `mongodb://${eu}:${ep}@${host}:${port}/${name}`
+      if (user && password) return `mongodb://${eu}:${ep}@${host}:${port}/${name}?authSource=admin`
       return `mongodb://${host}:${port}/${name}`
     case 'sqlite':
       return `./data/${name}.db`
