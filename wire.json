@@ -1,0 +1,12 @@
+{
+  "name": "setup",
+  "package": "@mostajs/setup",
+  "version": "2.0.0",
+  "type": "core",
+  "priority": 10,
+  "dependencies": ["auth", "settings"],
+  "displayName": "Setup",
+  "description": "Installation wizard — DB config, module selection, admin creation, seeding",
+  "icon": "Wrench",
+  "register": "./dist/register.js"
+}
