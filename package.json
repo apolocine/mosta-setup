@@ -73,6 +73,7 @@
   "files": [
     "dist",
     "schemas",
+    "cli",
     "wire.json",
     "setup.wire.json",
     "LICENSE",
@@ -94,6 +95,9 @@
   "homepage": "https://mostajs.dev/packages/setup",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "bin": {
+    "mosta-setup": "./dist/cli/init.js"
   },
   "scripts": {
     "build": "tsc",
