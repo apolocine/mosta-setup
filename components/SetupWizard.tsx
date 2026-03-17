@@ -64,6 +64,18 @@ export interface SetupWizardProps {
   dbNamePrefix?: string
   /** Whether to persist wizard state in sessionStorage (default: true) */
   persistState?: boolean
+  /**
+   * Show the modules selection step even without a detectModules endpoint.
+   * When true and no detectModules endpoint, uses the built-in module list.
+   * Default: true
+   */
+  showModules?: boolean
+  /**
+   * Module keys declared in setup.json (from env.MOSTAJS_MODULES).
+   * When provided, the wizard shows these modules with install commands
+   * instead of calling the detectModules endpoint.
+   */
+  declaredModules?: string[]
 }
 
 // ── Constants ────────────────────────────────────────────────
@@ -526,11 +538,13 @@ export default function SetupWizard({
   endpoints = {},
   dbNamePrefix = 'mydb',
   persistState = true,
+  showModules = true,
+  declaredModules,
 }: SetupWizardProps) {
   const t = tProp || ((k: string) => k)
 
-  // Modules step is only shown if detectModules endpoint is explicitly provided
-  const hasModulesStep = !!endpoints.detectModules
+  // Modules step is shown unless explicitly disabled
+  const hasModulesStep = showModules !== false
   const STEPS = hasModulesStep
     ? ALL_STEPS
     : ALL_STEPS.filter(s => s !== 'modules')
@@ -1098,12 +1112,19 @@ export default function SetupWizard({
                     {dbTesting ? t('setup.database.testing') : t('setup.database.test')}
                   </button>
                   {dbTestResult && (
-                    <span style={{ fontSize: 13, color: dbTestResult.ok ? '#059669' : '#dc2626' }}>
-                      {dbTestResult.ok
-                        ? `✅ ${t('setup.database.success')}${dbTestResult.dbVersion ? ` (v${dbTestResult.dbVersion})` : ''}`
-                        : `❌ ${t('setup.database.error')}: ${dbTestResult.error}`
-                      }
-                    </span>
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: dbTestResult.ok ? '#059669' : '#dc2626' }}>
+                        {dbTestResult.ok
+                          ? `✅ ${t('setup.database.success')}${dbTestResult.dbVersion ? ` (v${dbTestResult.dbVersion})` : ''}`
+                          : `❌ ${t('setup.database.error')}: ${dbTestResult.error}`
+                        }
+                      </span>
+                      {dbTestResult.ok && (
+                        <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontFamily: 'monospace', backgroundColor: '#f3f4f6', padding: '4px 8px', borderRadius: 4 }}>
+                          {dialect}://{dbConfig.user ? dbConfig.user + '@' : ''}{dbConfig.host}:{dbConfig.port}/{dbConfig.name}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
