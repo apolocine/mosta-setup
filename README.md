@@ -25,7 +25,8 @@ Part of the [@mosta suite](https://mostajs.dev).
 6. [Systeme de modules](#6-systeme-de-modules)
 7. [Exemples avances](#7-exemples-avances)
 8. [Reconfiguration (post-installation)](#8-reconfiguration-post-installation)
-9. [FAQ / Troubleshooting](#9-faq--troubleshooting)
+9. [Mode declaratif : setup.json](#9-mode-declaratif--setupjson)
+10. [FAQ / Troubleshooting](#10-faq--troubleshooting)
 
 ---
 
@@ -497,6 +498,13 @@ npm run dev
 | `createDetectModulesHandler()` | `/api/setup/detect-modules` | GET | Liste modules (statiques + npm) + installes |
 | `createInstallModulesHandler(needsSetup)` | `/api/setup/install-modules` | POST | Installe les modules npm selectionnes |
 
+### setup.json (declaratif)
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `loadSetupJson` | `(source?, repoFactory?) => Promise<MostaSetupConfig>` | Charge `setup.json` et retourne un config complet |
+| `createSetupJsonHandler` | `(needsSetup) => { GET, POST }` | Route API pour verifier/uploader `setup.json` |
+
 ### Data exports
 
 | Export | Description |
@@ -853,7 +861,202 @@ Un package npm ne peut pas injecter de pages dans le routeur — c'est donc au p
 
 ---
 
-## 9. FAQ / Troubleshooting
+## 9. Mode declaratif : setup.json
+
+> **Nouveau** — Depuis v1.5, le setup peut etre entierement configure via un fichier JSON declaratif.
+
+### Principe
+
+Au lieu d'ecrire du TypeScript pour definir les categories, permissions, roles et seeds,
+vous declarez tout dans un fichier `setup.json` a la racine du projet. Le module le lit
+et genere automatiquement les callbacks `seedRBAC`, `createAdmin` et `optionalSeeds`.
+
+### Creer un setup.json
+
+**3 methodes :**
+
+| Methode | Commande | Pour qui |
+|---------|----------|----------|
+| **Studio visuel** | Ouvrir [MostaSetup Studio](https://github.com/apolocine/mosta-setup-studio) | Non-developpeurs, design RBAC |
+| **CLI interactif** | `npx mosta-setup` | Developpeurs en terminal |
+| **CLI rapide** | `npx mosta-setup --quick --name MonApp --port 3000` | CI/CD, scripts |
+
+### Structure du fichier
+
+```json
+{
+  "$schema": "https://mostajs.dev/schemas/setup.v1.json",
+  "app": {
+    "name": "MonApp",
+    "port": 3000,
+    "dbNamePrefix": "monappdb"
+  },
+  "env": {
+    "MOSTAJS_MODULES": "orm,auth,audit,rbac,settings,setup"
+  },
+  "rbac": {
+    "categories": [
+      { "name": "admin", "label": "Administration", "icon": "Settings", "order": 0 }
+    ],
+    "permissions": [
+      { "code": "admin:access", "description": "Acceder au panneau", "category": "admin" }
+    ],
+    "roles": [
+      { "name": "admin", "description": "Administrateur", "permissions": ["*"] }
+    ]
+  },
+  "seeds": [
+    {
+      "key": "products",
+      "label": "Produits demo",
+      "collection": "product",
+      "match": "slug",
+      "default": true,
+      "data": [
+        { "name": "Produit A", "slug": "produit-a", "price": 1000 }
+      ]
+    }
+  ]
+}
+```
+
+Le champ `$schema` active l'**autocompletion dans VS Code** (types, descriptions, exemples).
+
+### Utiliser loadSetupJson()
+
+```typescript
+// src/lib/setup-config.ts
+import { loadSetupJson } from '@mostajs/setup'
+import type { MostaSetupConfig } from '@mostajs/setup'
+
+// repoFactory : adapte a votre couche d'acces aux donnees
+async function repoFactory(collection: string) {
+  const service = await import('@/dal/service')
+  const factories: Record<string, () => Promise<unknown>> = {
+    permissionCategory: service.permissionCategoryRepo,
+    permission: service.permissionRepo,
+    role: service.roleRepo,
+    user: service.userRepo,
+    activity: service.activityRepo,
+  }
+  return factories[collection]() as Promise<any>
+}
+
+export async function getSetupConfig(): Promise<MostaSetupConfig> {
+  return loadSetupJson('./setup.json', repoFactory)
+}
+```
+
+```typescript
+// src/app/api/setup/install/route.ts
+import { runInstall } from '@mostajs/setup'
+import type { InstallConfig } from '@mostajs/setup'
+import { appNeedsSetup, getSetupConfig } from '@/lib/setup-config'
+
+export async function POST(req: Request) {
+  if (!(await appNeedsSetup())) {
+    return Response.json({ error: 'Already installed' }, { status: 400 })
+  }
+  const body: InstallConfig = await req.json()
+  const config = await getSetupConfig()
+  return Response.json(await runInstall(body, config))
+}
+```
+
+### Fonctionnalites des seeds JSON
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `key` | `string` | Identifiant unique du seed |
+| `label` | `string` | Label affiche dans le wizard (checkbox) |
+| `collection` | `string` | Collection/table cible (doit matcher un schema enregistre) |
+| `match` | `string` | Champ pour upsert idempotent (ex: `slug`, `email`) |
+| `hashField` | `string` | Champ a hasher avec bcrypt avant insertion (ex: `password`) |
+| `roleField` | `string` | Champ contenant un nom de role — resolu en ID a l'execution |
+| `defaults` | `object` | Valeurs par defaut fusionnees dans chaque ligne |
+| `default` | `boolean` | Si `true`, la checkbox est cochee par defaut dans le wizard |
+| `data` | `array` | Tableau d'objets a seeder |
+
+**Exemple : seed utilisateurs avec hash + resolution de role :**
+```json
+{
+  "key": "demoUsers",
+  "collection": "user",
+  "match": "email",
+  "hashField": "password",
+  "roleField": "role",
+  "defaults": { "status": "active" },
+  "data": [
+    { "email": "agent@app.dz", "password": "Agent@123", "firstName": "Karim", "role": "agent_accueil" }
+  ]
+}
+```
+
+A l'execution :
+1. `password` est hashe avec bcrypt (12 rounds)
+2. `role: "agent_accueil"` est resolu en `roles: ["<id-du-role>"]`
+3. `defaults.status` est fusionne → `status: "active"`
+4. Si `match: "email"` et l'email existe deja → upsert (pas de doublon)
+
+### setup.json manquant : upload automatique
+
+Si le projet accede a `/setup` et que `setup.json` n'existe pas, la page affiche
+automatiquement un formulaire d'upload (drag & drop ou selection de fichier).
+
+Pour activer cette fonctionnalite, ajoutez la route API :
+
+```typescript
+// src/app/api/setup/setup-json/route.ts
+import { createSetupJsonHandler } from '@mostajs/setup'
+import { appNeedsSetup } from '@/lib/setup-config'
+
+export const { GET, POST } = createSetupJsonHandler(appNeedsSetup)
+```
+
+- **GET** `/api/setup/setup-json` → `{ exists: boolean, config?: {...} }`
+- **POST** `/api/setup/setup-json` → recoit le JSON, ecrit `./setup.json`
+
+### Mixer JSON + code TypeScript
+
+Les seeds simples (insert de donnees) vont dans `setup.json`. Les seeds complexes
+(relations, logique conditionnelle) restent en TypeScript :
+
+```typescript
+const config = await loadSetupJson('./setup.json', repoFactory)
+// Ajouter un seed code-only
+config.optionalSeeds = [
+  ...(config.optionalSeeds ?? []),
+  { key: 'demoData', label: 'Donnees complexes', run: async () => { /* ... */ } },
+]
+```
+
+### Validation
+
+`loadSetupJson()` valide automatiquement :
+- `app.name` est requis
+- Chaque permission reference une categorie existante
+- Chaque role reference des permissions existantes (sauf `*`)
+- Erreur descriptive en cas de reference croisee invalide
+
+### CLI : npx mosta-setup
+
+```bash
+# Mode interactif (terminal)
+npx mosta-setup
+
+# Mode rapide (CI, scripts, Dockerfile)
+npx mosta-setup --quick --name MonApp --port 4567 --db monappdb
+
+# Avec modules
+npx mosta-setup --quick --name MonApp --modules "orm,auth,audit,rbac,settings,setup"
+
+# Sortie stdout (pour pipe)
+npx mosta-setup --quick --name MonApp --stdout | jq .
+```
+
+---
+
+## 10. FAQ / Troubleshooting
 
 ### L'installation tourne en boucle (GET /setup se repete)
 
