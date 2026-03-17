@@ -1,0 +1,218 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mostajs.dev/schemas/setup.v1.json",
+  "title": "MostaJS Setup Configuration",
+  "description": "Declarative setup manifest for @mostajs/setup — defines app info, RBAC, seeds, and env vars for the install wizard.",
+  "type": "object",
+  "required": ["app"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for IDE autocompletion"
+    },
+    "app": {
+      "type": "object",
+      "description": "Application metadata",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Application name displayed in the setup wizard",
+          "minLength": 1,
+          "examples": ["SecuAccessPro", "MostaGare", "MonApp"]
+        },
+        "port": {
+          "type": "integer",
+          "description": "Default HTTP port",
+          "default": 3000,
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "dbNamePrefix": {
+          "type": "string",
+          "description": "Default database name prefix used in the wizard",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "examples": ["secuaccessdb", "mostagaredb"]
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "description": "Extra environment variables written to .env.local during install",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "examples": [
+        { "MOSTAJS_MODULES": "orm,auth,audit,rbac,settings,setup" }
+      ]
+    },
+    "rbac": {
+      "type": "object",
+      "description": "Role-Based Access Control definitions seeded at install time",
+      "additionalProperties": false,
+      "properties": {
+        "categories": {
+          "type": "array",
+          "description": "Permission categories (grouping)",
+          "items": {
+            "type": "object",
+            "required": ["name", "label"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Unique key (e.g. 'admin', 'client')",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "label": {
+                "type": "string",
+                "description": "Display label"
+              },
+              "description": {
+                "type": "string"
+              },
+              "icon": {
+                "type": "string",
+                "description": "Lucide icon name (e.g. 'Settings', 'Users')"
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Display order"
+              },
+              "system": {
+                "type": "boolean",
+                "default": true,
+                "description": "Whether this category is system-defined (not user-deletable)"
+              }
+            }
+          }
+        },
+        "permissions": {
+          "type": "array",
+          "description": "Permission definitions",
+          "items": {
+            "type": "object",
+            "required": ["code", "description", "category"],
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Unique permission code (e.g. 'client:view')",
+                "pattern": "^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$"
+              },
+              "name": {
+                "type": "string",
+                "description": "Display name (defaults to code if omitted)"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable description"
+              },
+              "category": {
+                "type": "string",
+                "description": "Category name reference"
+              }
+            }
+          }
+        },
+        "roles": {
+          "type": "array",
+          "description": "Role definitions with permission assignments",
+          "items": {
+            "type": "object",
+            "required": ["name", "permissions"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Unique role name (e.g. 'admin', 'agent_accueil')",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "description": {
+                "type": "string"
+              },
+              "system": {
+                "type": "boolean",
+                "default": true,
+                "description": "Whether this role is system-defined"
+              },
+              "permissions": {
+                "type": "array",
+                "description": "Permission codes assigned to this role. Use ['*'] for all permissions.",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "seeds": {
+      "type": "array",
+      "description": "Optional seed datasets shown as checkboxes in the install wizard",
+      "items": {
+        "type": "object",
+        "required": ["key", "label", "collection", "data"],
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Unique seed identifier",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$"
+          },
+          "label": {
+            "type": "string",
+            "description": "Label shown in the wizard checkbox"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description shown below the label"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Lucide icon name"
+          },
+          "default": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether this seed is checked by default"
+          },
+          "collection": {
+            "type": "string",
+            "description": "Target collection/table name (must match a registered schema)"
+          },
+          "match": {
+            "type": "string",
+            "description": "Field used for upsert matching (idempotent seeding). If omitted, uses 'create' (non-idempotent)."
+          },
+          "hashField": {
+            "type": "string",
+            "description": "Field to bcrypt-hash before insert (e.g. 'password')"
+          },
+          "roleField": {
+            "type": "string",
+            "description": "Field containing a role name — resolved to role ID at runtime"
+          },
+          "defaults": {
+            "type": "object",
+            "description": "Default values merged into every data item",
+            "additionalProperties": true
+          },
+          "data": {
+            "type": "array",
+            "description": "Array of records to seed",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "minItems": 1
+          }
+        }
+      }
+    }
+  }
+}
