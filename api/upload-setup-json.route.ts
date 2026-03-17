@@ -31,8 +31,10 @@ export function createSetupJsonHandler(needsSetup: NeedsSetupFn) {
         exists: true,
         config: {
           appName: json.app?.name,
+          dbNamePrefix: json.app?.dbNamePrefix,
           hasRbac: !!(json.rbac?.roles?.length || json.rbac?.permissions?.length),
           seedCount: json.seeds?.length ?? 0,
+          modules: (json as unknown as Record<string, unknown>).modules ?? [],
         },
       })
     } catch (err: unknown) {
