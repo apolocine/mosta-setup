@@ -6,7 +6,7 @@
 
 import fs from 'fs'
 import path from 'path'
-import type { SetupJson } from '../lib/load-setup-json.js'
+import type { SetupJson } from '../lib/load-setup-json'
 
 type NeedsSetupFn = () => Promise<boolean>
 

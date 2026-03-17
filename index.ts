@@ -2,37 +2,37 @@
 // Author: Dr Hamid MADANI drmdh@msn.com
 
 // Core
-export { needsSetup, runInstall } from './lib/setup'
-export { testDbConnection } from './lib/db-test'
-export { composeDbUri } from './lib/compose-uri'
-export { writeEnvLocal } from './lib/env-writer'
+export { needsSetup, runInstall } from './lib/setup.js'
+export { testDbConnection } from './lib/db-test.js'
+export { composeDbUri } from './lib/compose-uri.js'
+export { writeEnvLocal } from './lib/env-writer.js'
 
 // Data
-export { DIALECT_INFO, ALL_DIALECTS } from './data/dialects'
-export { MODULES, resolveModuleDependencies } from './data/module-definitions'
+export { DIALECT_INFO, ALL_DIALECTS } from './data/dialects.js'
+export { MODULES, resolveModuleDependencies } from './data/module-definitions.js'
 
 // Lib
-export { discoverNpmModules } from './lib/discover-modules'
-export { loadSetupJson } from './lib/load-setup-json'
-export type { SetupJson, SetupJsonRbac, SetupJsonSeed, SetupJsonCategory, SetupJsonPermission, SetupJsonRole } from './lib/load-setup-json'
+export { discoverNpmModules } from './lib/discover-modules.js'
+export { loadSetupJson } from './lib/load-setup-json.js'
+export type { SetupJson, SetupJsonRbac, SetupJsonSeed, SetupJsonCategory, SetupJsonPermission, SetupJsonRole } from './lib/load-setup-json.js'
 
 // API route factories
-export { createTestDbHandler } from './api/test-db.route'
-export { createInstallHandler } from './api/install.route'
-export { createStatusHandler } from './api/status.route'
-export { createDetectModulesHandler } from './api/detect-modules.route'
-export { createInstallModulesHandler } from './api/install-modules.route'
-export { createReconfigHandlers } from './api/reconfig.route'
-export { createUploadJarHandlers } from './api/upload-jar.route'
-export { createWireModuleHandler } from './api/wire-module.route'
-export { createSetupJsonHandler } from './api/upload-setup-json.route'
+export { createTestDbHandler } from './api/test-db.route.js'
+export { createInstallHandler } from './api/install.route.js'
+export { createStatusHandler } from './api/status.route.js'
+export { createDetectModulesHandler } from './api/detect-modules.route.js'
+export { createInstallModulesHandler } from './api/install-modules.route.js'
+export { createReconfigHandlers } from './api/reconfig.route.js'
+export { createUploadJarHandlers } from './api/upload-jar.route.js'
+export { createWireModuleHandler } from './api/wire-module.route.js'
+export { createSetupJsonHandler } from './api/upload-setup-json.route.js'
 
 // Components
-export { default as ReconfigPanel } from './components/ReconfigPanel'
-export { default as SetupWizard } from './components/SetupWizard'
+export { default as ReconfigPanel } from './components/ReconfigPanel.js'
+export { default as SetupWizard } from './components/SetupWizard.js'
 
 // Menu contribution
-export { setupMenuContribution } from './lib/menu'
+export { setupMenuContribution } from './lib/menu.js'
 
 // Types
 export type {
@@ -44,4 +44,4 @@ export type {
   SeedDefinition,
   MostaSetupConfig,
   ModuleDefinition,
-} from './types/index'
+} from './types/index.js'

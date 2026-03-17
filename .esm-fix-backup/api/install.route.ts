@@ -3,8 +3,8 @@
 //
 // Copy to: src/app/api/setup/install/route.ts
 
-import { runInstall } from '../lib/setup.js'
-import type { InstallConfig, MostaSetupConfig } from '../types/index.js'
+import { runInstall } from '../lib/setup'
+import type { InstallConfig, MostaSetupConfig } from '../types/index'
 
 type NeedsSetupFn = () => Promise<boolean>
 

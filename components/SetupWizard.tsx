@@ -71,11 +71,11 @@ export interface SetupWizardProps {
    */
   showModules?: boolean
   /**
-   * Module keys declared in setup.json (from env.MOSTAJS_MODULES).
-   * When provided, the wizard shows these modules with install commands
+   * Full module definitions from setup.json (section "modules").
+   * When provided, the wizard shows these modules directly
    * instead of calling the detectModules endpoint.
    */
-  declaredModules?: string[]
+  declaredModules?: { key: string; packageName?: string; label?: string; description?: string; icon?: string; required?: boolean; dependsOn?: string[] }[]
 }
 
 // ── Constants ────────────────────────────────────────────────
@@ -610,12 +610,30 @@ export default function SetupWizard({
     } catch {}
   }, [hydrated, persistState, currentStep, dialect, dbConfig, adminConfig, seedOptions, selectedModules])
 
-  // --- Detect modules (only if endpoint is provided) ---
+  // --- Detect modules ---
   useEffect(() => {
+    // From setup.json (passed as prop)
+    if (declaredModules && declaredModules.length > 0) {
+      const mods: ModuleDefinition[] = declaredModules.map(m => ({
+        key: m.key,
+        label: m.label ?? m.key,
+        description: m.description ?? '',
+        icon: m.icon ?? '📦',
+        required: m.required,
+        default: true,
+        dependsOn: m.dependsOn,
+      }))
+      setAvailableModules(mods)
+      setSelectedModules(declaredModules.map(m => m.key))
+      setModulesDetected(true)
+      return
+    }
+    // No modules and no endpoint → skip
     if (!ep.detectModules) {
       setModulesDetected(true)
       return
     }
+    // From API endpoint
     fetch(ep.detectModules)
       .then(r => r.json())
       .then((data: { modules: ModuleDefinition[]; installed: string[] }) => {

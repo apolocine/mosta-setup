@@ -2,7 +2,7 @@
 // Author: Dr Hamid MADANI drmdh@msn.com
 import fs from 'fs'
 import path from 'path'
-import type { DialectType } from '../types/index.js'
+import type { DialectType } from '../types/index'
 
 export interface EnvWriterOptions {
   dialect: DialectType

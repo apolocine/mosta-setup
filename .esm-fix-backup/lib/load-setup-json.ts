@@ -12,7 +12,7 @@
 
 import fs from 'fs'
 import path from 'path'
-import type { MostaSetupConfig, SeedDefinition } from '../types/index.js'
+import type { MostaSetupConfig, SeedDefinition } from '../types/index'
 
 // ── Types for the JSON structure ─────────────────────────
 
