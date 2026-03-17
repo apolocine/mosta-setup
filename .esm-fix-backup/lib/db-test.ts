@@ -1,7 +1,7 @@
 // @mosta/setup — Database connection test (ephemeral, never touches global connection)
 // Author: Dr Hamid MADANI drmdh@msn.com
-import type { DialectType, DbConfig } from '../types/index.js'
-import { composeDbUri } from './compose-uri.js'
+import type { DialectType, DbConfig } from '../types/index'
+import { composeDbUri } from './compose-uri'
 
 /**
  * Test a database connection without affecting the global dialect singleton.

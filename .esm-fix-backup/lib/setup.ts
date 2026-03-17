@@ -1,8 +1,8 @@
 // @mosta/setup — Core setup logic
 // Author: Dr Hamid MADANI drmdh@msn.com
-import { composeDbUri } from './compose-uri.js'
-import { writeEnvLocal } from './env-writer.js'
-import type { InstallConfig, MostaSetupConfig } from '../types/index.js'
+import { composeDbUri } from './compose-uri'
+import { writeEnvLocal } from './env-writer'
+import type { InstallConfig, MostaSetupConfig } from '../types/index'
 
 /**
  * Check if the app needs initial setup (0 users in DB).

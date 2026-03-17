@@ -33,7 +33,7 @@ export interface InstallConfig {
   modules?: string[]
 }
 
-export type { ModuleDefinition } from '../data/module-definitions.js'
+export type { ModuleDefinition } from '../data/module-definitions'
 
 export interface SeedOptions {
   [key: string]: boolean
