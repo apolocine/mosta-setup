@@ -67,10 +67,12 @@
       "types": "./dist/register.d.ts",
       "import": "./dist/register.js",
       "default": "./dist/register.js"
-    }
+    },
+    "./schemas/*": "./schemas/*"
   },
   "files": [
     "dist",
+    "schemas",
     "wire.json",
     "setup.wire.json",
     "LICENSE",

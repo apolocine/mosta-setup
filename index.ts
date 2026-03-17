@@ -13,6 +13,8 @@ export { MODULES, resolveModuleDependencies } from './data/module-definitions'
 
 // Lib
 export { discoverNpmModules } from './lib/discover-modules'
+export { loadSetupJson } from './lib/load-setup-json'
+export type { SetupJson, SetupJsonRbac, SetupJsonSeed, SetupJsonCategory, SetupJsonPermission, SetupJsonRole } from './lib/load-setup-json'
 
 // API route factories
 export { createTestDbHandler } from './api/test-db.route'
