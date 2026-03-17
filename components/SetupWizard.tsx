@@ -68,8 +68,8 @@ export interface SetupWizardProps {
 
 // ── Constants ────────────────────────────────────────────────
 
-const STEPS = ['welcome', 'modules', 'dialect', 'database', 'admin', 'summary'] as const
-type Step = typeof STEPS[number]
+const ALL_STEPS = ['welcome', 'modules', 'dialect', 'database', 'admin', 'summary'] as const
+type Step = typeof ALL_STEPS[number]
 
 const DIALECT_DEFAULTS: Record<Dialect, DbConfig> = {
   mongodb:     { host: 'localhost', port: 27017, name: 'mydb_prod',   user: '',         password: '' },
@@ -529,14 +529,20 @@ export default function SetupWizard({
 }: SetupWizardProps) {
   const t = tProp || ((k: string) => k)
 
+  // Modules step is only shown if detectModules endpoint is explicitly provided
+  const hasModulesStep = !!endpoints.detectModules
+  const STEPS = hasModulesStep
+    ? ALL_STEPS
+    : ALL_STEPS.filter(s => s !== 'modules')
+
   const ep = {
-    detectModules: endpoints.detectModules || '/api/setup/detect-modules',
+    detectModules: endpoints.detectModules || '',
     testDb: endpoints.testDb || '/api/setup/test-db',
-    installModules: endpoints.installModules || '/api/setup/install-modules',
+    installModules: endpoints.installModules || '',
     install: endpoints.install || '/api/setup/install',
     uploadJar: endpoints.uploadJar || '/api/setup/upload-jar',
-    wireModule: endpoints.wireModule || '/api/setup/wire-module',
-    seed: endpoints.seed || '/api/setup/seed',
+    wireModule: endpoints.wireModule || '',
+    seed: endpoints.seed || '',
   }
 
   // --- State ---
@@ -590,8 +596,12 @@ export default function SetupWizard({
     } catch {}
   }, [hydrated, persistState, currentStep, dialect, dbConfig, adminConfig, seedOptions, selectedModules])
 
-  // --- Detect modules ---
+  // --- Detect modules (only if endpoint is provided) ---
   useEffect(() => {
+    if (!ep.detectModules) {
+      setModulesDetected(true)
+      return
+    }
     fetch(ep.detectModules)
       .then(r => r.json())
       .then((data: { modules: ModuleDefinition[]; installed: string[] }) => {
@@ -635,8 +645,9 @@ export default function SetupWizard({
     })
   }, [availableModules])
 
-  // --- Wire modules (load after installation success) ---
+  // --- Wire modules (load after installation success, only if endpoint provided) ---
   const loadWireModules = useCallback(async () => {
+    if (!ep.wireModule) return
     setWireLoading(true)
     try {
       const res = await fetch(ep.wireModule)
