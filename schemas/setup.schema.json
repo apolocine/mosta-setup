@@ -151,6 +151,45 @@
         }
       }
     },
+    "modules": {
+      "type": "array",
+      "description": "Modules to use in the project. Exported by MostaSetup Studio. Shown in the wizard with install commands.",
+      "items": {
+        "type": "object",
+        "required": ["key", "packageName"],
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Unique module identifier (e.g. 'orm', 'auth', 'ticketing')"
+          },
+          "packageName": {
+            "type": "string",
+            "description": "npm package name (e.g. '@mostajs/orm')"
+          },
+          "label": {
+            "type": "string",
+            "description": "Display label"
+          },
+          "description": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Emoji icon"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether this module is required (cannot be deselected)"
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Module keys this module depends on"
+          }
+        }
+      }
+    },
     "seeds": {
       "type": "array",
       "description": "Optional seed datasets shown as checkboxes in the install wizard",
