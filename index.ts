@@ -25,6 +25,7 @@ export { createInstallModulesHandler } from './api/install-modules.route'
 export { createReconfigHandlers } from './api/reconfig.route'
 export { createUploadJarHandlers } from './api/upload-jar.route'
 export { createWireModuleHandler } from './api/wire-module.route'
+export { createSetupJsonHandler } from './api/upload-setup-json.route'
 
 // Components
 export { default as ReconfigPanel } from './components/ReconfigPanel'
