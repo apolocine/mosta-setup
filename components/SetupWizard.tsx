@@ -59,6 +59,10 @@ export interface SetupWizardProps {
     wireModule?: string
     /** Seed endpoint — runs module seeds from the runtime registry */
     seed?: string
+    /** Preflight checks endpoint */
+    preflight?: string
+    /** Create database endpoint */
+    createDb?: string
   }
   /** Default database name prefix (e.g. 'secuaccessdb') */
   dbNamePrefix?: string
@@ -557,6 +561,8 @@ export default function SetupWizard({
     uploadJar: endpoints.uploadJar || '/api/setup/upload-jar',
     wireModule: endpoints.wireModule || '',
     seed: endpoints.seed || '',
+    preflight: endpoints.preflight || '/api/setup/preflight',
+    createDb: endpoints.createDb || '/api/setup/create-db',
   }
 
   // --- State ---
@@ -582,6 +588,15 @@ export default function SetupWizard({
   const [wireLoading, setWireLoading] = useState(false)
   const [wireBusy, setWireBusy] = useState<string | null>(null)
   const [wireMessage, setWireMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Preflight checks
+  interface PreflightCheck { key: string; label: string; status: 'ok' | 'warn' | 'fail'; detail: string }
+  const [preflightChecks, setPreflightChecks] = useState<PreflightCheck[]>([])
+  const [preflightLoading, setPreflightLoading] = useState(false)
+
+  // Create DB
+  const [creatingDb, setCreatingDb] = useState(false)
+  const [createDbResult, setCreateDbResult] = useState<{ ok: boolean; detail?: string; error?: string } | null>(null)
 
   const step: Step = STEPS[currentStep]
 
@@ -735,6 +750,48 @@ export default function SetupWizard({
     setDbTestResult(null)
   }
 
+  // --- Preflight checks ---
+  async function runPreflight() {
+    setPreflightLoading(true)
+    try {
+      const res = await fetch(ep.preflight)
+      const data = await res.json()
+      setPreflightChecks(data.checks || [])
+    } catch {
+      setPreflightChecks([{ key: 'error', label: 'Preflight', status: 'fail', detail: 'Erreur réseau' }])
+    }
+    setPreflightLoading(false)
+  }
+
+  // Auto-run preflight on welcome step
+  useEffect(() => {
+    if (step === 'welcome' && preflightChecks.length === 0) {
+      runPreflight()
+    }
+  }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- Create Database ---
+  async function createDatabase() {
+    setCreatingDb(true)
+    setCreateDbResult(null)
+    try {
+      const res = await fetch(ep.createDb, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dialect, ...dbConfig }),
+      })
+      const data = await res.json()
+      setCreateDbResult(data)
+      if (data.ok) {
+        // Auto-run test after creation
+        setDbTestResult(null)
+      }
+    } catch (err: unknown) {
+      setCreateDbResult({ ok: false, error: err instanceof Error ? err.message : 'Erreur réseau' })
+    }
+    setCreatingDb(false)
+  }
+
   // --- Test DB ---
   async function testDb() {
     setDbTesting(true)
@@ -854,15 +911,57 @@ export default function SetupWizard({
 
           {/* ─── Step 1: Welcome ─── */}
           {step === 'welcome' && (
-            <div style={S.center}>
-              <div style={{ width: 80, height: 80, borderRadius: '50%', backgroundColor: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 40 }}>
-                🛡️
+            <div>
+              <div style={S.center}>
+                <div style={{ width: 80, height: 80, borderRadius: '50%', backgroundColor: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 40 }}>
+                  🛡️
+                </div>
+                <h2 style={{ fontSize: 24, fontWeight: 700, color: '#111827', marginBottom: 8 }}>{t('setup.welcome.title')}</h2>
+                <p style={{ color: '#6b7280', marginBottom: 16 }}>{t('setup.welcome.description')}</p>
               </div>
-              <h2 style={{ fontSize: 24, fontWeight: 700, color: '#111827', marginBottom: 8 }}>{t('setup.welcome.title')}</h2>
-              <p style={{ color: '#6b7280', marginBottom: 24 }}>{t('setup.welcome.description')}</p>
-              <button style={S.btn('lg')} onClick={goNext}>
-                {t('setup.welcome.start')} →
-              </button>
+
+              {/* Preflight checks panel */}
+              <div style={{ margin: '16px 0 24px', padding: 16, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>🔍 {t('setup.welcome.checks')}</div>
+                  <button
+                    style={{ ...S.btn('outline'), fontSize: 12, padding: '4px 12px' }}
+                    onClick={runPreflight}
+                    disabled={preflightLoading}
+                  >
+                    {preflightLoading ? '⏳' : '🔄'} {t('setup.welcome.recheck')}
+                  </button>
+                </div>
+
+                {preflightLoading && preflightChecks.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 16, color: '#6b7280', fontSize: 13 }}>⏳ {t('setup.welcome.checking')}</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {preflightChecks.map(check => (
+                      <div key={check.key} style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                        backgroundColor: check.status === 'ok' ? '#f0fdf4' : check.status === 'warn' ? '#fffbeb' : '#fef2f2',
+                        border: `1px solid ${check.status === 'ok' ? '#bbf7d0' : check.status === 'warn' ? '#fde68a' : '#fecaca'}`,
+                        borderRadius: 6, fontSize: 13,
+                      }}>
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>
+                          {check.status === 'ok' ? '✅' : check.status === 'warn' ? '⚠️' : '❌'}
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: 600, color: '#111827' }}>{check.label}</span>
+                          <span style={{ color: '#6b7280', marginLeft: 8 }}>{check.detail}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={S.center}>
+                <button style={S.btn('lg')} onClick={goNext}>
+                  {t('setup.welcome.start')} →
+                </button>
+              </div>
             </div>
           )}
 
@@ -1109,15 +1208,36 @@ export default function SetupWizard({
                 <JarUploadInline dialect={dialect} jarEndpoint={ep.uploadJar} dbConfig={dbConfig} />
               )}
 
-              {/* Create DB if not exists */}
+              {/* Create DB if not exists + Create button */}
               {dialect !== 'sqlite' && dialect !== 'spanner' && (
-                <div style={{ ...S.checkRow, marginTop: 12, padding: '10px 14px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8 }}>
-                  <input type="checkbox" style={S.checkbox}
-                    checked={createIfNotExists}
-                    onChange={e => setCreateIfNotExists(e.target.checked)} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t('setup.database.createIfNotExists')}</div>
-                    <div style={{ fontSize: 12, color: '#92400e' }}>{t('setup.database.createIfNotExistsDesc')}</div>
+                <div style={{ marginTop: 12, padding: '12px 14px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8 }}>
+                  <div style={S.checkRow}>
+                    <input type="checkbox" style={S.checkbox}
+                      checked={createIfNotExists}
+                      onChange={e => setCreateIfNotExists(e.target.checked)} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{t('setup.database.createIfNotExists')}</div>
+                      <div style={{ fontSize: 12, color: '#92400e' }}>{t('setup.database.createIfNotExistsDesc')}</div>
+                    </div>
+                  </div>
+                  {/* Create Database button */}
+                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button
+                      style={{ ...S.btn('outline', creatingDb), fontSize: 12, padding: '6px 14px', backgroundColor: '#fef3c7' }}
+                      onClick={createDatabase}
+                      disabled={creatingDb || !dbConfig.name}
+                    >
+                      {creatingDb ? '⏳ ' : '🗃️ '}
+                      {creatingDb ? t('setup.database.creating') : t('setup.database.createDb')}
+                    </button>
+                    {createDbResult && (
+                      <span style={{ fontSize: 12, color: createDbResult.ok ? '#059669' : '#dc2626' }}>
+                        {createDbResult.ok
+                          ? `✅ ${createDbResult.detail || t('setup.database.createDbSuccess')}`
+                          : `❌ ${createDbResult.error}`
+                        }
+                      </span>
+                    )}
                   </div>
                 </div>
               )}

@@ -2,11 +2,11 @@
 // Author: Dr Hamid MADANI drmdh@msn.com
 
 import type { ModuleRegistration } from '@mostajs/socle'
-import { setupMenuContribution } from './lib/menu.js'
 
 /**
  * Setup provides the installation wizard and reconfiguration panel.
  * No schemas of its own — orchestrates other modules' seeds.
+ * Menu contributions are declared by the host app, not by this module.
  */
 export function register(registry: { register(r: ModuleRegistration): void }): void {
   registry.register({
@@ -22,7 +22,5 @@ export function register(registry: { register(r: ModuleRegistration): void }): v
       icon: 'Wrench',
       register: './dist/register.js',
     },
-
-    menu: setupMenuContribution,
   })
 }
