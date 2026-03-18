@@ -26,13 +26,13 @@ export { createReconfigHandlers } from './api/reconfig.route.js'
 export { createUploadJarHandlers } from './api/upload-jar.route.js'
 export { createWireModuleHandler } from './api/wire-module.route.js'
 export { createSetupJsonHandler } from './api/upload-setup-json.route.js'
+export { createPreflightHandler } from './api/preflight.route.js'
+export type { PreflightCheck } from './api/preflight.route.js'
+export { createCreateDbHandler } from './api/create-db.route.js'
 
 // Components
 export { default as ReconfigPanel } from './components/ReconfigPanel.js'
 export { default as SetupWizard } from './components/SetupWizard.js'
-
-// Menu contribution
-export { setupMenuContribution } from './lib/menu.js'
 
 // Types
 export type {

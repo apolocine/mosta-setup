@@ -1,6 +1,6 @@
 {
   "name": "@mostajs/setup",
-  "version": "1.5.1",
+  "version": "2.0.1",
   "description": "Reusable setup wizard module — multi-dialect DB configuration, .env.local writer, seed runner",
   "author": "Dr Hamid MADANI <drmdh@msn.com>",
   "license": "MIT",
@@ -32,11 +32,6 @@
       "types": "./dist/types/index.d.ts",
       "import": "./dist/types/index.js",
       "default": "./dist/types/index.js"
-    },
-    "./lib/menu": {
-      "types": "./dist/lib/menu.d.ts",
-      "import": "./dist/lib/menu.js",
-      "default": "./dist/lib/menu.js"
     },
     "./components/ReconfigPanel": {
       "types": "./dist/components/ReconfigPanel.d.ts",
@@ -104,7 +99,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@mostajs/orm": "^1.4.1",
+    "@mostajs/orm": "^1.4.15",
     "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
