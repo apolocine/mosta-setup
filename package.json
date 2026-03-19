@@ -43,6 +43,11 @@
       "import": "./dist/components/SetupWizard.js",
       "default": "./dist/components/SetupWizard.js"
     },
+    "./api/routes": {
+      "types": "./dist/api/routes.d.ts",
+      "import": "./dist/api/routes.js",
+      "default": "./dist/api/routes.js"
+    },
     "./api/reconfig": {
       "types": "./dist/api/reconfig.route.d.ts",
       "import": "./dist/api/reconfig.route.js",
