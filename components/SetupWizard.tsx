@@ -93,7 +93,7 @@ const DIALECT_DEFAULTS: Record<Dialect, DbConfig> = {
   postgres:    { host: 'localhost', port: 5432,  name: 'mydb',        user: 'postgres', password: '' },
   mysql:       { host: 'localhost', port: 3306,  name: 'mydb',        user: 'root',     password: '' },
   mariadb:     { host: 'localhost', port: 3306,  name: 'mydb',        user: 'root',     password: '' },
-  oracle:      { host: 'localhost', port: 1521,  name: 'mydb',        user: 'system',   password: '' },
+  oracle:      { host: 'localhost', port: 1521,  name: 'XEPDB1',      user: 'system',   password: '' },
   mssql:       { host: 'localhost', port: 1433,  name: 'mydb',        user: 'sa',       password: '' },
   cockroachdb: { host: 'localhost', port: 26257, name: 'mydb',        user: 'root',     password: '' },
   db2:         { host: 'localhost', port: 50000, name: 'mydb',        user: 'db2inst1', password: '' },
@@ -110,7 +110,7 @@ const DIALECT_INFO: { key: Dialect; name: string; icon: string; premium?: boolea
   { key: 'mysql',       name: 'MySQL',          icon: '🐬' },
   { key: 'mariadb',     name: 'MariaDB',        icon: '🦭' },
   { key: 'mssql',       name: 'SQL Server',     icon: '🟦' },
-  { key: 'oracle',      name: 'Oracle',         icon: '🔴', premium: true, jdbc: true },
+  { key: 'oracle',      name: 'Oracle',         icon: '🔴' },
   { key: 'cockroachdb', name: 'CockroachDB',    icon: '🪳' },
   { key: 'db2',         name: 'IBM DB2',        icon: '🏢', premium: true, jdbc: true },
   { key: 'hana',        name: 'SAP HANA',       icon: '💎', premium: true, jdbc: true },
@@ -119,7 +119,7 @@ const DIALECT_INFO: { key: Dialect; name: string; icon: string; premium?: boolea
   { key: 'sybase',      name: 'Sybase ASE',     icon: '🔷', premium: true, jdbc: true },
 ]
 
-const JDBC_DIALECTS: Dialect[] = ['hsqldb', 'oracle', 'db2', 'hana', 'sybase']
+const JDBC_DIALECTS: Dialect[] = ['hsqldb', 'db2', 'hana', 'sybase']
 
 const DRIVER_HINTS: Record<Dialect, string> = {
   mongodb:     'npm install mongoose',
