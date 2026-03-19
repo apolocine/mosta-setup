@@ -46,7 +46,8 @@ export async function runInstall(
     })
 
     // 2. For JDBC dialects, persist bridge port so app always reconnects to the same bridge
-    const JDBC_DIALECTS = ['hsqldb', 'oracle', 'db2', 'hana', 'sybase']
+    // Note: Oracle uses native oracledb driver, not JDBC bridge
+    const JDBC_DIALECTS = ['hsqldb', 'db2', 'hana', 'sybase']
     if (JDBC_DIALECTS.includes(installConfig.dialect)) {
       const bridgePort = process.env.MOSTA_BRIDGE_PORT_BASE || '8765'
       extraVars['MOSTA_BRIDGE_PORT_BASE'] = bridgePort

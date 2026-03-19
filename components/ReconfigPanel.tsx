@@ -45,7 +45,7 @@ interface DialectOption {
 }
 
 /** Dialects that require a JDBC bridge JAR */
-const JDBC_DIALECTS: DialectType[] = ['hsqldb', 'oracle', 'db2', 'sybase', 'hana']
+const JDBC_DIALECTS: DialectType[] = ['hsqldb', 'db2', 'sybase', 'hana']
 
 const DIALECTS: DialectOption[] = [
   { key: 'mongodb',     name: 'MongoDB',        icon: '🍃', defaultPort: 27017, defaultUser: '',         defaultHost: 'localhost', requiresAuth: false },
@@ -54,7 +54,7 @@ const DIALECTS: DialectOption[] = [
   { key: 'mysql',       name: 'MySQL',          icon: '🐬', defaultPort: 3306,  defaultUser: 'root',     defaultHost: 'localhost', requiresAuth: true },
   { key: 'mariadb',     name: 'MariaDB',        icon: '🦭', defaultPort: 3306,  defaultUser: 'root',     defaultHost: 'localhost', requiresAuth: true },
   { key: 'mssql',       name: 'SQL Server',     icon: '🟦', defaultPort: 1433,  defaultUser: 'sa',       defaultHost: 'localhost', requiresAuth: true },
-  { key: 'oracle',      name: 'Oracle',         icon: '🔴', defaultPort: 1521,  defaultUser: 'system',   defaultHost: 'localhost', requiresAuth: true,  premium: true, jdbc: true },
+  { key: 'oracle',      name: 'Oracle',         icon: '🔴', defaultPort: 1521,  defaultUser: 'system',   defaultHost: 'localhost', requiresAuth: true },
   { key: 'cockroachdb', name: 'CockroachDB',    icon: '🪳', defaultPort: 26257, defaultUser: 'root',     defaultHost: 'localhost', requiresAuth: true },
   { key: 'db2',         name: 'IBM DB2',        icon: '🏢', defaultPort: 50000, defaultUser: 'db2inst1', defaultHost: 'localhost', requiresAuth: true,  premium: true, jdbc: true },
   { key: 'hana',        name: 'SAP HANA',       icon: '💎', defaultPort: 39013, defaultUser: 'SYSTEM',   defaultHost: 'localhost', requiresAuth: true,  premium: true, jdbc: true },
