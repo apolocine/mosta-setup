@@ -627,9 +627,80 @@ export default function SetupWizard({
 
   // --- Detect modules ---
   useEffect(() => {
-    // From setup.json (passed as prop)
+    const declaredKeys = new Set((declaredModules ?? []).map(m => m.key))
+
+    // If API endpoint available → fetch full catalog, enrich with declared info
+    if (ep.detectModules) {
+      fetch(ep.detectModules)
+        .then(r => r.json())
+        .then((data: { modules: ModuleDefinition[]; installed: string[] }) => {
+          const apiModules = data.modules || []
+          if (data.installed) setDetectedModules(data.installed)
+
+          // Merge: API modules as base, enrich with setup.json overrides
+          if (declaredModules && declaredModules.length > 0) {
+            const apiByKey = new Map(apiModules.map(m => [m.key, m]))
+            // Enrich API modules with declared metadata
+            for (const dm of declaredModules) {
+              const existing = apiByKey.get(dm.key)
+              if (existing) {
+                if (dm.label) existing.label = dm.label
+                if (dm.description) existing.description = dm.description
+                if (dm.icon) existing.icon = dm.icon
+              } else {
+                // Module declared in setup.json but not in API catalog — add it
+                apiModules.push({
+                  key: dm.key,
+                  label: dm.label ?? dm.key,
+                  description: dm.description ?? '',
+                  icon: dm.icon ?? '📦',
+                  required: dm.required,
+                  default: true,
+                  dependsOn: dm.dependsOn,
+                })
+              }
+            }
+            setAvailableModules(apiModules)
+            // Pre-select: declared modules + required
+            const pre = new Set([
+              ...declaredKeys,
+              ...apiModules.filter(m => m.required).map(m => m.key),
+            ])
+            setSelectedModules(Array.from(pre))
+          } else {
+            setAvailableModules(apiModules)
+            if (selectedModules.length === 0) {
+              const pre = new Set([
+                ...apiModules.filter(m => m.required || m.default).map(m => m.key),
+                ...(data.installed || []),
+              ])
+              setSelectedModules(Array.from(pre))
+            }
+          }
+          setModulesDetected(true)
+        })
+        .catch(() => {
+          // API failed — fallback to declared modules only
+          if (declaredModules && declaredModules.length > 0) {
+            setAvailableModules(declaredModules.map(m => ({
+              key: m.key,
+              label: m.label ?? m.key,
+              description: m.description ?? '',
+              icon: m.icon ?? '📦',
+              required: m.required,
+              default: true,
+              dependsOn: m.dependsOn,
+            })))
+            setSelectedModules(Array.from(declaredKeys))
+          }
+          setModulesDetected(true)
+        })
+      return
+    }
+
+    // No API endpoint — use declared modules only (if any)
     if (declaredModules && declaredModules.length > 0) {
-      const mods: ModuleDefinition[] = declaredModules.map(m => ({
+      setAvailableModules(declaredModules.map(m => ({
         key: m.key,
         label: m.label ?? m.key,
         description: m.description ?? '',
@@ -637,34 +708,14 @@ export default function SetupWizard({
         required: m.required,
         default: true,
         dependsOn: m.dependsOn,
-      }))
-      setAvailableModules(mods)
-      setSelectedModules(declaredModules.map(m => m.key))
+      })))
+      setSelectedModules(Array.from(declaredKeys))
       setModulesDetected(true)
       return
     }
-    // No modules and no endpoint → skip
-    if (!ep.detectModules) {
-      setModulesDetected(true)
-      return
-    }
-    // From API endpoint
-    fetch(ep.detectModules)
-      .then(r => r.json())
-      .then((data: { modules: ModuleDefinition[]; installed: string[] }) => {
-        if (data.modules) setAvailableModules(data.modules)
-        if (data.installed) setDetectedModules(data.installed)
-        if (selectedModules.length === 0) {
-          const mods = data.modules || []
-          const pre = new Set([
-            ...mods.filter(m => m.required || m.default).map(m => m.key),
-            ...(data.installed || []),
-          ])
-          setSelectedModules(Array.from(pre))
-        }
-        setModulesDetected(true)
-      })
-      .catch(() => setModulesDetected(true))
+
+    // No endpoint, no declared modules → skip
+    setModulesDetected(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
