@@ -1123,6 +1123,59 @@ Puis recompilez : `cd packages/mosta-setup && npx tsc`
 | [@mostajs/settings](https://www.npmjs.com/package/@mostajs/settings) | oui | non | Parametres cle-valeur |
 | [@mostajs/face](https://www.npmjs.com/package/@mostajs/face) | **non** | **oui** | Reconnaissance faciale (independant) |
 
+## Catch-all Route Factory (createSetupRoutes)
+
+Replace 6+ individual route files with a single `[...slug]` handler :
+
+```typescript
+// src/app/api/setup/[...slug]/route.ts — 7 lines replaces 6 files
+import { createSetupRoutes } from '@mostajs/setup'
+import { appNeedsSetup, getSetupConfig } from '@/lib/setup-config'
+
+export const { GET, POST, DELETE, PATCH } = createSetupRoutes({
+  needsSetup: appNeedsSetup,
+  getSetupConfig,
+})
+```
+
+Handles all 11 setup endpoints : status, test-db, create-db, preflight, detect-modules, install-modules, setup-json, upload-jar, wire-module, reconfig, install.
+
+## createAdmin (auto-generated)
+
+`loadSetupJson()` automatically generates a `createAdmin` callback that :
+1. Gets the `user` repo via `repoFactory`
+2. Gets the `role` repo to resolve the `admin` role
+3. Creates the admin user with bcrypt-hashed password and admin role
+
+No need to define `createAdmin` manually — it comes from `loadSetupJson()`.
+
+## lookupFields (cross-entity references in seeds)
+
+Resolve a field value from another collection before inserting seed data :
+
+```json
+{
+  "key": "demoClients",
+  "collection": "client",
+  "lookupFields": {
+    "createdBy": { "collection": "user", "match": "status", "value": "active" }
+  },
+  "data": [
+    { "firstName": "Samir", "lastName": "Boudjema", "phone": "0550100001" }
+  ]
+}
+```
+
+`lookupFields.createdBy` : find the first `user` where `status = "active"`, inject its `id` as `createdBy` in every data item.
+
+Useful for seeds that reference entities created by earlier seeds (RBAC roles, admin user, etc.).
+
+## Dynamic Seeds in SetupWizard
+
+The wizard automatically loads available seeds from the `/api/setup/setup-json` endpoint and displays them as checkboxes. Seeds with `"default": true` in setup.json are pre-checked.
+
+No need to hardcode seed checkboxes — add a seed to `setup.json` and it appears in the wizard automatically.
+
 ## License
 
-MIT — (c) 2025 Dr Hamid MADANI <drmdh@msn.com>
+MIT — (c) 2025-2026 Dr Hamid MADANI <drmdh@msn.com>

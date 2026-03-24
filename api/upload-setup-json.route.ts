@@ -34,6 +34,13 @@ export function createSetupJsonHandler(needsSetup: NeedsSetupFn) {
           dbNamePrefix: json.app?.dbNamePrefix,
           hasRbac: !!(json.rbac?.roles?.length || json.rbac?.permissions?.length),
           seedCount: json.seeds?.length ?? 0,
+          seeds: (json.seeds ?? []).map(s => ({
+            key: s.key,
+            label: s.label,
+            description: s.description ?? '',
+            icon: s.icon,
+            default: s.default ?? false,
+          })),
           modules: (json as unknown as Record<string, unknown>).modules ?? [],
         },
       })

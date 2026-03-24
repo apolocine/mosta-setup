@@ -56,6 +56,7 @@ export interface SetupJsonSeed {
   hashField?: string
   roleField?: string
   defaults?: Record<string, unknown>
+  lookupFields?: Record<string, { collection: string; match: string; value: string }>
   data: Record<string, unknown>[]
 }
 
@@ -209,6 +210,23 @@ function buildConfig(json: SetupJson, repoFactory?: (collection: string) => Prom
     }
   }
 
+  // ── createAdmin (generic — uses repoFactory for 'user' + 'role') ──
+  config.createAdmin = async ({ email, hashedPassword, firstName, lastName }) => {
+    const getRepo = repoFactory ?? defaultRepoFactory
+    const userRepo = await getRepo('user')
+    const roleRepo = await getRepo('role')
+    // Resolve admin role (seeded in RBAC step just before)
+    const adminRole = await roleRepo.findOne!({ name: 'admin' })
+    await userRepo.create!({
+      email,
+      password: hashedPassword,
+      firstName,
+      lastName,
+      status: 'active',
+      roles: adminRole ? [adminRole.id] : [],
+    })
+  }
+
   // ── optionalSeeds ──────────────────────────────────────
   if (json.seeds?.length) {
     config.optionalSeeds = json.seeds.map(seedDef => buildSeedDefinition(seedDef, repoFactory))
@@ -228,8 +246,18 @@ function buildSeedDefinition(seedDef: SetupJsonSeed, repoFactory?: (collection: 
       const getRepo = repoFactory ?? defaultRepoFactory
       const repo = await getRepo(seedDef.collection)
 
+      // Resolve lookupFields once (e.g. createdBy → user where email = admin@test.dz → userId)
+      const resolved: Record<string, unknown> = {}
+      if (seedDef.lookupFields) {
+        for (const [field, lookup] of Object.entries(seedDef.lookupFields)) {
+          const lookupRepo = await getRepo(lookup.collection)
+          const found = await lookupRepo.findOne!({ [lookup.match]: lookup.value })
+          if (found) resolved[field] = found.id
+        }
+      }
+
       for (const rawItem of seedDef.data) {
-        const item = { ...(seedDef.defaults ?? {}), ...rawItem }
+        const item = { ...(seedDef.defaults ?? {}), ...resolved, ...rawItem }
 
         // Hash field if configured (e.g. password)
         if (seedDef.hashField && item[seedDef.hashField]) {
