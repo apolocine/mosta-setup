@@ -39,9 +39,7 @@ interface AdminConfig {
 }
 
 interface SeedOptions {
-  activities: boolean
-  demoUsers: boolean
-  demoData: boolean
+  [key: string]: boolean
 }
 
 export interface SetupWizardProps {
@@ -63,6 +61,8 @@ export interface SetupWizardProps {
     preflight?: string
     /** Create database endpoint */
     createDb?: string
+    /** Setup JSON endpoint (GET returns seeds list) */
+    setupJson?: string
   }
   /** Default database name prefix (e.g. 'secuaccessdb') */
   dbNamePrefix?: string
@@ -563,6 +563,7 @@ export default function SetupWizard({
     seed: endpoints.seed || '',
     preflight: endpoints.preflight || '/api/setup/preflight',
     createDb: endpoints.createDb || '/api/setup/create-db',
+    setupJson: endpoints.setupJson || '/api/setup/setup-json',
   }
 
   // --- State ---
@@ -572,7 +573,8 @@ export default function SetupWizard({
   const [dbTestResult, setDbTestResult] = useState<{ ok: boolean; error?: string; dbVersion?: string } | null>(null)
   const [dbTesting, setDbTesting] = useState(false)
   const [adminConfig, setAdminConfig] = useState<AdminConfig>({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' })
-  const [seedOptions, setSeedOptions] = useState<SeedOptions>({ activities: true, demoUsers: false, demoData: false })
+  const [seedOptions, setSeedOptions] = useState<SeedOptions>({})
+  const [availableSeeds, setAvailableSeeds] = useState<{ key: string; label: string; description: string; icon?: string; default: boolean }[]>([])
   const [availableModules, setAvailableModules] = useState<ModuleDefinition[]>([])
   const [selectedModules, setSelectedModules] = useState<string[]>([])
   const [detectedModules, setDetectedModules] = useState<string[]>([])
@@ -624,6 +626,25 @@ export default function SetupWizard({
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ currentStep, dialect, dbConfig, adminConfig, seedOptions, selectedModules }))
     } catch {}
   }, [hydrated, persistState, currentStep, dialect, dbConfig, adminConfig, seedOptions, selectedModules])
+
+  // --- Load seeds from setup.json ---
+  useEffect(() => {
+    if (!hydrated) return
+    fetch(ep.setupJson)
+      .then(r => r.json())
+      .then((data: { exists: boolean; config?: { seeds?: { key: string; label: string; description: string; icon?: string; default: boolean }[] } }) => {
+        const seeds = data.config?.seeds ?? []
+        setAvailableSeeds(seeds)
+        // Initialize seedOptions from defaults (only if not already restored from session)
+        setSeedOptions(prev => {
+          if (Object.keys(prev).length > 0) return prev
+          const defaults: SeedOptions = {}
+          for (const s of seeds) defaults[s.key] = s.default
+          return defaults
+        })
+      })
+      .catch(() => {})
+  }, [hydrated])
 
   // --- Detect modules ---
   useEffect(() => {
@@ -1425,41 +1446,25 @@ export default function SetupWizard({
                 </div>
               </div>
 
-              {/* Seed options */}
+              {/* Seed options — dynamic from setup.json */}
+              {availableSeeds.length > 0 && (
               <div style={S.summaryCard}>
                 <div style={S.summaryTitle}>{t('setup.summary.seedTitle')}</div>
                 <p style={{ ...S.summaryText, marginBottom: 12 }}>{t('setup.summary.seedInfo')}</p>
-                <div style={S.checkRow}>
-                  <input type="checkbox" style={S.checkbox}
-                    checked={seedOptions.activities}
-                    onChange={e => setSeedOptions({ ...seedOptions, activities: e.target.checked, demoData: e.target.checked ? seedOptions.demoData : false })}
-                    disabled={installing || !!installResult?.ok} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t('setup.summary.seedActivities')}</div>
-                    <div style={{ fontSize: 12, color: '#9ca3af' }}>{t('setup.summary.seedActivitiesDesc')}</div>
+                {availableSeeds.map(seed => (
+                  <div key={seed.key} style={S.checkRow}>
+                    <input type="checkbox" style={S.checkbox}
+                      checked={seedOptions[seed.key] ?? false}
+                      onChange={e => setSeedOptions({ ...seedOptions, [seed.key]: e.target.checked })}
+                      disabled={installing || !!installResult?.ok} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{seed.label}</div>
+                      <div style={{ fontSize: 12, color: '#9ca3af' }}>{seed.description}</div>
+                    </div>
                   </div>
-                </div>
-                <div style={S.checkRow}>
-                  <input type="checkbox" style={S.checkbox}
-                    checked={seedOptions.demoUsers}
-                    onChange={e => setSeedOptions({ ...seedOptions, demoUsers: e.target.checked })}
-                    disabled={installing || !!installResult?.ok} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t('setup.summary.seedDemoUsers')}</div>
-                    <div style={{ fontSize: 12, color: '#9ca3af' }}>{t('setup.summary.seedDemoUsersDesc')}</div>
-                  </div>
-                </div>
-                <div style={S.checkRow}>
-                  <input type="checkbox" style={S.checkbox}
-                    checked={seedOptions.demoData}
-                    onChange={e => setSeedOptions({ ...seedOptions, demoData: e.target.checked, activities: e.target.checked ? true : seedOptions.activities })}
-                    disabled={installing || !!installResult?.ok} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t('setup.summary.seedDemoData')}</div>
-                    <div style={{ fontSize: 12, color: '#9ca3af' }}>{t('setup.summary.seedDemoDataDesc')}</div>
-                  </div>
-                </div>
+                ))}
               </div>
+              )}
 
               {/* Install result */}
               {installResult && (

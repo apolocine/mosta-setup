@@ -17,7 +17,7 @@
 ● Bash(cd /home/hmd/dev/MostaGare-Install/SecuAccessPro && git add -A && git status --short)
   ⎿  Interrupted · What should Claude do instead?
 
-❯ pour SecuAccessPro crée un branche by-setup-studio commit push sansinfos claude, continue                                                            
+❯ pour SecuAccessPro crée un branche by-setup-studio commit push sansinfos claude, continue  
 
 ● Bash(cd /home/hmd/dev/MostaGare-Install/SecuAccessPro && git checkout -b by-setup-studio && git add -A && git commit -m "feat: migration vers
       setup.json declaratif,…)
@@ -36,7 +36,7 @@
   │ SecuAccessPro │ by-setup-studio │ setup.json, setup-config.ts simplifié, tests unitaires + E2E │
   └───────────────┴─────────────────┴──────────────────────────────────────────────────────────────┘
 
-❯ continue phases suivantes                                                                                                                            
+❯ continue phases suivantes        
 
 ● Phase 2 : MostaSetup Studio — l'outil visuel pour générer setup.json. Vérifions d'abord le pattern de mosta-site/.
 
@@ -141,9 +141,9 @@
      … +746 lines (ctrl+o to expand)
 
 
-❯ peut on ajouter la matrix d'attribution des permissions                                                                                              
+❯ peut on ajouter la matrix d'attribution des permissions                                    
 
-❯ comme celle du module rbac,                                                                                                                          
+❯ comme celle du module rbac,      
 
 ● Compris — tu veux une matrice visuelle rôles x permissions (comme dans mosta-rbac). Laisse-moi d'abord finir la page principale, puis j'ajoute la
   matrice.
@@ -180,16 +180,16 @@
       322      <div className="space-y-4">
       323        <SectionTitle title="RBAC" subtitle="Categories, permissions et roles seeds a l'installation" />
       324        <div className="flex gap-2 border-b pb-2">
-      325 -        {(['categories', 'permissions', 'roles'] as const).map(s => (                                                                
+      325 -        {(['categories', 'permissions', 'roles'] as const).map(s => (      
       325 +        {(['categories', 'permissions', 'roles', 'matrix'] as const).map(s => (                                                      
       326            <button key={s} onClick={() => setSubTab(s)}
       327              className={`px-3 py-1.5 text-sm rounded-t-lg ${subTab === s ? 'bg-sky-50 text-sky-700 border-b-2 border-sky-600' : 'text-
            gray-500 hover:text-gray-700'}`}>
       328              {s === 'categories' ? `Categories (${rbac.categories.length})` :
       329               s === 'permissions' ? `Permissions (${rbac.permissions.length})` :
-      330 -             `Roles (${rbac.roles.length})`}                                                                                         
-      330 +             s === 'roles' ? `Roles (${rbac.roles.length})` :                                                                        
-      331 +             'Matrice'}                                                                                                              
+      330 -             `Roles (${rbac.roles.length})`}                               
+      330 +             s === 'roles' ? `Roles (${rbac.roles.length})` :              
+      331 +             'Matrice'}                                                    
       332            </button>
       333          ))}
       334        </div>
@@ -197,164 +197,164 @@
       344          <RolesEditor roles={rbac.roles} permissions={rbac.permissions}
       345            onChange={roles => onChange({ roles })} />
       346        )}
-      347 +      {subTab === 'matrix' && (                                                                                                      
+      347 +      {subTab === 'matrix' && (                                            
       348 +        <PermissionMatrix roles={rbac.roles} permissions={rbac.permissions} categories={rbac.categories}                             
-      349 +          onChange={roles => onChange({ roles })} />                                                                                 
-      350 +      )}                                                                                                                             
+      349 +          onChange={roles => onChange({ roles })} />                       
+      350 +      )}         
       351      </div>
       352    )
       353  }
       354  
-      355 +// ── Permission Matrix (roles x permissions) ──────────────                                                                         
-      356 +                                                                                                                                     
-      357 +function PermissionMatrix({ roles, permissions, categories, onChange }: {                                                            
+      355 +// ── Permission Matrix (roles x permissions) ──────────────               
+      356 +                 
+      357 +function PermissionMatrix({ roles, permissions, categories, onChange }: {  
       358 +  roles: Role[]; permissions: Permission[]; categories: Category[]; onChange: (r: Role[]) => void                                    
-      359 +}) {                                                                                                                                 
-      360 +  // Group permissions by category                                                                                                   
+      359 +}) {             
+      360 +  // Group permissions by category                                         
       361 +  const grouped: { cat: string; catLabel: string; perms: Permission[] }[] = []                                                       
-      362 +  const catMap = new Map(categories.map(c => [c.name, c.label]))                                                                     
-      363 +  const seen = new Set<string>()                                                                                                     
-      364 +  for (const cat of categories) {                                                                                                    
-      365 +    const perms = permissions.filter(p => p.category === cat.name)                                                                   
-      366 +    if (perms.length > 0) {                                                                                                          
-      367 +      grouped.push({ cat: cat.name, catLabel: cat.label, perms })                                                                    
-      368 +      perms.forEach(p => seen.add(p.code))                                                                                           
-      369 +    }                                                                                                                                
-      370 +  }                                                                                                                                  
-      371 +  // Uncategorized                                                                                                                   
-      372 +  const uncategorized = permissions.filter(p => !seen.has(p.code))                                                                   
-      373 +  if (uncategorized.length > 0) {                                                                                                    
+      362 +  const catMap = new Map(categories.map(c => [c.name, c.label]))           
+      363 +  const seen = new Set<string>()                                           
+      364 +  for (const cat of categories) {                                          
+      365 +    const perms = permissions.filter(p => p.category === cat.name)         
+      366 +    if (perms.length > 0) {                                                
+      367 +      grouped.push({ cat: cat.name, catLabel: cat.label, perms })          
+      368 +      perms.forEach(p => seen.add(p.code))                                 
+      369 +    }            
+      370 +  }              
+      371 +  // Uncategorized                                                         
+      372 +  const uncategorized = permissions.filter(p => !seen.has(p.code))         
+      373 +  if (uncategorized.length > 0) {                                          
       374 +    grouped.push({ cat: '_other', catLabel: 'Autres', perms: uncategorized })                                                        
-      375 +  }                                                                                                                                  
-      376 +                                                                                                                                     
-      377 +  const toggleCell = (roleIdx: number, permCode: string) => {                                                                        
-      378 +    const role = roles[roleIdx]                                                                                                      
+      375 +  }              
+      376 +                 
+      377 +  const toggleCell = (roleIdx: number, permCode: string) => {              
+      378 +    const role = roles[roleIdx]                                            
       379 +    if (role.permissions.includes('*')) return // don't toggle individual if wildcard                                                
-      380 +    const has = role.permissions.includes(permCode)                                                                                  
-      381 +    const updated = [...roles]                                                                                                       
-      382 +    updated[roleIdx] = {                                                                                                             
-      383 +      ...role,                                                                                                                       
+      380 +    const has = role.permissions.includes(permCode)                        
+      381 +    const updated = [...roles]                                             
+      382 +    updated[roleIdx] = {                                                   
+      383 +      ...role,   
       384 +      permissions: has ? role.permissions.filter(c => c !== permCode) : [...role.permissions, permCode],                             
-      385 +    }                                                                                                                                
-      386 +    onChange(updated)                                                                                                                
-      387 +  }                                                                                                                                  
-      388 +                                                                                                                                     
-      389 +  const toggleAllForRole = (roleIdx: number) => {                                                                                    
-      390 +    const role = roles[roleIdx]                                                                                                      
-      391 +    const allCodes = permissions.map(p => p.code)                                                                                    
+      385 +    }            
+      386 +    onChange(updated)                                                      
+      387 +  }              
+      388 +                 
+      389 +  const toggleAllForRole = (roleIdx: number) => {                          
+      390 +    const role = roles[roleIdx]                                            
+      391 +    const allCodes = permissions.map(p => p.code)                          
       392 +    const hasAll = role.permissions.includes('*') || allCodes.every(c => role.permissions.includes(c))                               
-      393 +    const updated = [...roles]                                                                                                       
-      394 +    updated[roleIdx] = { ...role, permissions: hasAll ? [] : ['*'] }                                                                 
-      395 +    onChange(updated)                                                                                                                
-      396 +  }                                                                                                                                  
-      397 +                                                                                                                                     
+      393 +    const updated = [...roles]                                             
+      394 +    updated[roleIdx] = { ...role, permissions: hasAll ? [] : ['*'] }       
+      395 +    onChange(updated)                                                      
+      396 +  }              
+      397 +                 
       398 +  const toggleCategoryForRole = (roleIdx: number, catPerms: Permission[]) => {                                                       
-      399 +    const role = roles[roleIdx]                                                                                                      
-      400 +    if (role.permissions.includes('*')) return                                                                                       
-      401 +    const codes = catPerms.map(p => p.code)                                                                                          
-      402 +    const allChecked = codes.every(c => role.permissions.includes(c))                                                                
-      403 +    const updated = [...roles]                                                                                                       
-      404 +    if (allChecked) {                                                                                                                
+      399 +    const role = roles[roleIdx]                                            
+      400 +    if (role.permissions.includes('*')) return                             
+      401 +    const codes = catPerms.map(p => p.code)                                
+      402 +    const allChecked = codes.every(c => role.permissions.includes(c))      
+      403 +    const updated = [...roles]                                             
+      404 +    if (allChecked) {                                                      
       405 +      updated[roleIdx] = { ...role, permissions: role.permissions.filter(c => !codes.includes(c)) }                                  
-      406 +    } else {                                                                                                                         
-      407 +      const newPerms = new Set([...role.permissions, ...codes])                                                                      
-      408 +      updated[roleIdx] = { ...role, permissions: [...newPerms] }                                                                     
-      409 +    }                                                                                                                                
-      410 +    onChange(updated)                                                                                                                
-      411 +  }                                                                                                                                  
-      412 +                                                                                                                                     
-      413 +  if (roles.length === 0 || permissions.length === 0) {                                                                              
-      414 +    return (                                                                                                                         
-      415 +      <div className="text-center py-12 text-gray-400">                                                                              
-      416 +        <p>Ajoutez des roles et permissions pour voir la matrice</p>                                                                 
-      417 +      </div>                                                                                                                         
-      418 +    )                                                                                                                                
-      419 +  }                                                                                                                                  
-      420 +                                                                                                                                     
-      421 +  return (                                                                                                                           
-      422 +    <div className="overflow-x-auto border rounded-lg bg-white">                                                                     
-      423 +      <table className="w-full text-xs">                                                                                             
-      424 +        <thead>                                                                                                                      
-      425 +          <tr className="bg-gray-50 border-b">                                                                                       
+      406 +    } else {     
+      407 +      const newPerms = new Set([...role.permissions, ...codes])            
+      408 +      updated[roleIdx] = { ...role, permissions: [...newPerms] }           
+      409 +    }            
+      410 +    onChange(updated)                                                      
+      411 +  }              
+      412 +                 
+      413 +  if (roles.length === 0 || permissions.length === 0) {                    
+      414 +    return (     
+      415 +      <div className="text-center py-12 text-gray-400">                    
+      416 +        <p>Ajoutez des roles et permissions pour voir la matrice</p>       
+      417 +      </div>     
+      418 +    )            
+      419 +  }              
+      420 +                 
+      421 +  return (       
+      422 +    <div className="overflow-x-auto border rounded-lg bg-white">           
+      423 +      <table className="w-full text-xs">                                   
+      424 +        <thead>  
+      425 +          <tr className="bg-gray-50 border-b">                             
       426 +            <th className="sticky left-0 bg-gray-50 z-10 px-3 py-2 text-left min-w-[220px] text-gray-600">Permission</th>            
-      427 +            {roles.map((role, ri) => (                                                                                               
-      428 +              <th key={ri} className="px-2 py-2 text-center min-w-[100px]">                                                          
+      427 +            {roles.map((role, ri) => (                                     
+      428 +              <th key={ri} className="px-2 py-2 text-center min-w-[100px]">
       429 +                <div className="font-semibold text-gray-700">{role.name}</div>                                                       
-      430 +                <button onClick={() => toggleAllForRole(ri)}                                                                         
+      430 +                <button onClick={() => toggleAllForRole(ri)}               
       431 +                  className={`mt-1 text-[10px] px-1.5 py-0.5 rounded ${role.permissions.includes('*') ? 'bg-sky-100 text-sky-700' : '
-          +bg-gray-100 text-gray-500 hover:bg-sky-50'}`}>                                                                                       
+          +bg-gray-100 text-gray-500 hover:bg-sky-50'}`}>                             
       432 +                  {role.permissions.includes('*') ? 'Toutes *' : 'Tout cocher'}                                                      
-      433 +                </button>                                                                                                            
-      434 +              </th>                                                                                                                  
-      435 +            ))}                                                                                                                      
-      436 +          </tr>                                                                                                                      
-      437 +        </thead>                                                                                                                     
-      438 +        <tbody>                                                                                                                      
-      439 +          {grouped.map(({ cat, catLabel, perms }) => (                                                                               
-      440 +            <Fragment key={cat}>                                                                                                     
-      441 +              {/* Category header */}                                                                                                
-      442 +              <tr className="bg-gray-100/70">                                                                                        
+      433 +                </button>                                                  
+      434 +              </th>                                                        
+      435 +            ))}  
+      436 +          </tr>  
+      437 +        </thead> 
+      438 +        <tbody>  
+      439 +          {grouped.map(({ cat, catLabel, perms }) => (                     
+      440 +            <Fragment key={cat}>                                           
+      441 +              {/* Category header */}                                      
+      442 +              <tr className="bg-gray-100/70">                              
       443 +                <td className="sticky left-0 bg-gray-100/70 z-10 px-3 py-1.5 font-semibold text-gray-600 text-xs uppercase tracking-w
-          +ide">                                                                                                                                
-      444 +                  {catLabel}                                                                                                         
-      445 +                </td>                                                                                                                
-      446 +                {roles.map((role, ri) => {                                                                                           
-      447 +                  const codes = perms.map(p => p.code)                                                                               
-      448 +                  const isWildcard = role.permissions.includes('*')                                                                  
+          +ide">            
+      444 +                  {catLabel}                                               
+      445 +                </td>                                                      
+      446 +                {roles.map((role, ri) => {                                 
+      447 +                  const codes = perms.map(p => p.code)                     
+      448 +                  const isWildcard = role.permissions.includes('*')        
       449 +                  const allChecked = isWildcard || codes.every(c => role.permissions.includes(c))                                    
       450 +                  const someChecked = !allChecked && codes.some(c => role.permissions.includes(c))                                   
-      451 +                  return (                                                                                                           
-      452 +                    <td key={ri} className="px-2 py-1.5 text-center">                                                                
+      451 +                  return (                                                 
+      452 +                    <td key={ri} className="px-2 py-1.5 text-center">      
       453 +                      <button onClick={() => !isWildcard && toggleCategoryForRole(ri, perms)}                                        
-      454 +                        disabled={isWildcard}                                                                                        
+      454 +                        disabled={isWildcard}                              
       455 +                        className={`w-4 h-4 rounded border inline-flex items-center justify-center text-[10px] ${                    
       456 +                          allChecked ? 'bg-sky-500 border-sky-500 text-white' :                                                      
       457 +                          someChecked ? 'bg-sky-200 border-sky-300 text-sky-700' :                                                   
-      458 +                          'bg-white border-gray-300'                                                                                 
+      458 +                          'bg-white border-gray-300'                       
       459 +                        } ${isWildcard ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-sky-400'}`}>                 
-      460 +                        {allChecked ? '✓' : someChecked ? '−' : ''}                                                                  
-      461 +                      </button>                                                                                                      
-      462 +                    </td>                                                                                                            
-      463 +                  )                                                                                                                  
-      464 +                })}                                                                                                                  
-      465 +              </tr>                                                                                                                  
-      466 +              {/* Permission rows */}                                                                                                
-      467 +              {perms.map(perm => (                                                                                                   
+      460 +                        {allChecked ? '✓' : someChecked ? '−' : ''}        
+      461 +                      </button>                                            
+      462 +                    </td>                                                  
+      463 +                  )                                                        
+      464 +                })}                                                        
+      465 +              </tr>                                                        
+      466 +              {/* Permission rows */}                                      
+      467 +              {perms.map(perm => (                                         
       468 +                <tr key={perm.code} className="border-t border-gray-100 hover:bg-sky-50/30">                                         
-      469 +                  <td className="sticky left-0 bg-white z-10 px-3 py-1.5">                                                           
-      470 +                    <div className="flex items-center gap-2">                                                                        
+      469 +                  <td className="sticky left-0 bg-white z-10 px-3 py-1.5"> 
+      470 +                    <div className="flex items-center gap-2">              
       471 +                      <code className="font-mono text-sky-700">{perm.code}</code>                                                    
       472 +                      {perm.description && <span className="text-gray-400 truncate max-w-[180px]">{perm.description}</span>}         
-      473 +                    </div>                                                                                                           
-      474 +                  </td>                                                                                                              
-      475 +                  {roles.map((role, ri) => {                                                                                         
-      476 +                    const isWildcard = role.permissions.includes('*')                                                                
+      473 +                    </div>                                                 
+      474 +                  </td>                                                    
+      475 +                  {roles.map((role, ri) => {                               
+      476 +                    const isWildcard = role.permissions.includes('*')      
       477 +                    const checked = isWildcard || role.permissions.includes(perm.code)                                               
-      478 +                    return (                                                                                                         
-      479 +                      <td key={ri} className="px-2 py-1.5 text-center">                                                              
+      478 +                    return (                                               
+      479 +                      <td key={ri} className="px-2 py-1.5 text-center">    
       480 +                        <input type="checkbox" checked={checked} disabled={isWildcard}                                               
-      481 +                          onChange={() => toggleCell(ri, perm.code)}                                                                 
+      481 +                          onChange={() => toggleCell(ri, perm.code)}       
       482 +                          className={`rounded border-gray-300 text-sky-600 focus:ring-sky-500 ${isWildcard ? 'opacity-50 cursor-not-a
-          +llowed' : 'cursor-pointer'}`} />                                                                                                     
-      483 +                      </td>                                                                                                          
-      484 +                    )                                                                                                                
-      485 +                  })}                                                                                                                
-      486 +                </tr>                                                                                                                
-      487 +              ))}                                                                                                                    
-      488 +            </Fragment>                                                                                                              
-      489 +          ))}                                                                                                                        
-      490 +        </tbody>                                                                                                                     
-      491 +      </table>                                                                                                                       
-      492 +      {/* Legend */}                                                                                                                 
+          +llowed' : 'cursor-pointer'}`} />                                           
+      483 +                      </td>                                                
+      484 +                    )                                                      
+      485 +                  })}                                                      
+      486 +                </tr>                                                      
+      487 +              ))}
+      488 +            </Fragment>                                                    
+      489 +          ))}    
+      490 +        </tbody> 
+      491 +      </table>   
+      492 +      {/* Legend */}                                                       
       493 +      <div className="flex items-center gap-4 px-3 py-2 border-t bg-gray-50 text-[10px] text-gray-500">                              
-      494 +        <span>{roles.length} roles</span>                                                                                            
-      495 +        <span>{permissions.length} permissions</span>                                                                                
-      496 +        <span>{categories.length} categories</span>                                                                                  
-      497 +      </div>                                                                                                                         
-      498 +    </div>                                                                                                                           
-      499 +  )                                                                                                                                  
-      500 +}                                                                                                                                    
-      501 +                                                                                                                                     
+      494 +        <span>{roles.length} roles</span>                                  
+      495 +        <span>{permissions.length} permissions</span>                      
+      496 +        <span>{categories.length} categories</span>                        
+      497 +      </div>     
+      498 +    </div>       
+      499 +  )              
+      500 +}                
+      501 +                 
       502  function CategoriesEditor({ categories, onChange }: { categories: Category[]; onChange: (c: Category[]) => void }) {
       503    const add = () => onChange([...categories, { name: '', label: '', description: '', icon: 'Settings', order: categories.length, syst
            em: true }])
@@ -367,8 +367,8 @@
       1  // Author: Dr Hamid MADANI drmdh@msn.com
       2  'use client'
       3  
-      4 -import { useState, useEffect, useCallback } from 'react'                                                                               
-      4 +import { useState, useEffect, useCallback, Fragment } from 'react'                                                                     
+      4 -import { useState, useEffect, useCallback } from 'react'                     
+      4 +import { useState, useEffect, useCallback, Fragment } from 'react'           
       5  import {
       6    Settings, Shield, Database, Eye, Download, Plus, Trash2, Copy, Check,
       7    GripVertical, ChevronDown, ChevronUp, Upload, FileJson,
@@ -423,9 +423,9 @@
        95    "engines": {
        96      "node": ">=18.0.0"
        97    },
-       98 +  "bin": {                                                                                                                           
-       99 +    "mosta-setup": "./dist/cli/init.js"                                                                                              
-      100 +  },                                                                                                                                 
+       98 +  "bin": {       
+       99 +    "mosta-setup": "./dist/cli/init.js"                                    
+      100 +  },             
       101    "scripts": {
       102      "build": "tsc",
       103      "prepublishOnly": "npm run build"
@@ -435,7 +435,7 @@
       73    "files": [
       74      "dist",
       75      "schemas",
-      76 +    "cli",                                                                                                                            
+      76 +    "cli",        
       77      "wire.json",
       78      "setup.wire.json",
       79      "LICENSE",
@@ -464,7 +464,7 @@
 ● Bash(git add -A && git commit -m "feat: CLI init (npx mosta-setup), bin entry, schema in files" && git push origin setup-studio 2>&1 | tail -3)
   ⎿  Interrupted · What should Claude do instead?
 
-❯ tu push sans le test?                                                                                                                                
+❯ tu push sans le test?            
 
 ● Tu as raison. Testons d'abord tout avant de push.
 
@@ -480,7 +480,7 @@
       utilisateurs\nusers\n\nadmin\nAdministrat…)
   ⎿  Interrupted · What should Claude do instead?
 
-❯ je veux que nous le testons ensemble tu mdemare et je visualise, continuons                                                                          
+❯ je veux que nous le testons ensemble tu mdemare et je visualise, continuons                
 
 ● Bash(node dist/cli/init.js)
   ⎿    MostaSetup — Generateur de setup.json
@@ -518,65 +518,65 @@
        1  #!/usr/bin/env node
        2  // Author: Dr Hamid MADANI drmdh@msn.com
        3  // CLI: npx @mostajs/setup init — interactive setup.json generator
-       4 +//                                                                                                                                    
-       5 +// Usage:                                                                                                                             
-       6 +//   npx mosta-setup              # interactive mode                                                                                  
+       4 +//                
+       5 +// Usage:         
+       6 +//   npx mosta-setup              # interactive mode                        
        7 +//   npx mosta-setup --quick      # generate minimal setup.json with defaults                                                         
        8 +//   npx mosta-setup --name MyApp --port 4567 --db myappdb  # non-interactive                                                         
-       9 +                                                                                                                                      
+       9 +                  
       10  import * as readline from 'readline'
       11  import * as fs from 'fs'
       12  import * as path from 'path'
       13  
        8 -const rl = readline.createInterface({ input: process.stdin, output: process.stdout })                                                 
-       9 -const ask = (q: string, def?: string): Promise<string> =>                                                                             
+       9 -const ask = (q: string, def?: string): Promise<string> =>                   
       10 -  new Promise(r => rl.question(`${q}${def ? ` (${def})` : ''}: `, a => r(a.trim() || def || '')))                                     
-      11 -                                                                                                                                      
+      11 -                  
       14  const CYAN = '\x1b[36m'
       15  const GREEN = '\x1b[32m'
       16  const NC = '\x1b[0m'
       17  
-      18 +// ── Parse CLI args ───────────────────────────────────────                                                                          
-      19 +                                                                                                                                      
-      20 +const args = process.argv.slice(2)                                                                                                    
-      21 +const getArg = (flag: string): string | undefined => {                                                                                
-      22 +  const i = args.indexOf(flag)                                                                                                        
-      23 +  return i >= 0 && i + 1 < args.length ? args[i + 1] : undefined                                                                      
-      24 +}                                                                                                                                     
-      25 +const hasFlag = (flag: string) => args.includes(flag)                                                                                 
-      26 +                                                                                                                                      
-      27 +// ── Quick mode (non-interactive) ─────────────────────────                                                                          
-      28 +                                                                                                                                      
-      29 +if (hasFlag('--quick') || hasFlag('-q')) {                                                                                            
-      30 +  const name = getArg('--name') || 'MonApp'                                                                                           
-      31 +  const port = parseInt(getArg('--port') || '3000')                                                                                   
+      18 +// ── Parse CLI args ───────────────────────────────────────                
+      19 +                  
+      20 +const args = process.argv.slice(2)                                          
+      21 +const getArg = (flag: string): string | undefined => {                      
+      22 +  const i = args.indexOf(flag)                                              
+      23 +  return i >= 0 && i + 1 < args.length ? args[i + 1] : undefined            
+      24 +}                 
+      25 +const hasFlag = (flag: string) => args.includes(flag)                       
+      26 +                  
+      27 +// ── Quick mode (non-interactive) ─────────────────────────                
+      28 +                  
+      29 +if (hasFlag('--quick') || hasFlag('-q')) {                                  
+      30 +  const name = getArg('--name') || 'MonApp'                                 
+      31 +  const port = parseInt(getArg('--port') || '3000')                         
       32 +  const dbPrefix = getArg('--db') || name.toLowerCase().replace(/[^a-z0-9]/g, '') + 'db'                                              
-      33 +  const modules = getArg('--modules')                                                                                                 
-      34 +                                                                                                                                      
-      35 +  const setup: Record<string, unknown> = {                                                                                            
-      36 +    $schema: 'https://mostajs.dev/schemas/setup.v1.json',                                                                             
+      33 +  const modules = getArg('--modules')                                       
+      34 +                  
+      35 +  const setup: Record<string, unknown> = {                                  
+      36 +    $schema: 'https://mostajs.dev/schemas/setup.v1.json',                   
       37 +    app: { name, ...(port !== 3000 ? { port } : {}), ...(dbPrefix ? { dbNamePrefix: dbPrefix } : {}) },                               
-      38 +  }                                                                                                                                   
-      39 +  if (modules) setup.env = { MOSTAJS_MODULES: modules }                                                                               
-      40 +                                                                                                                                      
-      41 +  const json = JSON.stringify(setup, null, 2)                                                                                         
-      42 +  const outPath = path.resolve(process.cwd(), 'setup.json')                                                                           
-      43 +                                                                                                                                      
-      44 +  if (hasFlag('--stdout')) {                                                                                                          
-      45 +    process.stdout.write(json + '\n')                                                                                                 
-      46 +  } else {                                                                                                                            
-      47 +    fs.writeFileSync(outPath, json + '\n', 'utf-8')                                                                                   
-      48 +    console.log(`${GREEN}setup.json cree: ${outPath}${NC}`)                                                                           
-      49 +  }                                                                                                                                   
-      50 +  process.exit(0)                                                                                                                     
-      51 +}                                                                                                                                     
-      52 +                                                                                                                                      
-      53 +// ── Interactive mode ─────────────────────────────────────                                                                          
-      54 +                                                                                                                                      
+      38 +  }               
+      39 +  if (modules) setup.env = { MOSTAJS_MODULES: modules }                     
+      40 +                  
+      41 +  const json = JSON.stringify(setup, null, 2)                               
+      42 +  const outPath = path.resolve(process.cwd(), 'setup.json')                 
+      43 +                  
+      44 +  if (hasFlag('--stdout')) {                                                
+      45 +    process.stdout.write(json + '\n')                                       
+      46 +  } else {        
+      47 +    fs.writeFileSync(outPath, json + '\n', 'utf-8')                         
+      48 +    console.log(`${GREEN}setup.json cree: ${outPath}${NC}`)                 
+      49 +  }               
+      50 +  process.exit(0) 
+      51 +}                 
+      52 +                  
+      53 +// ── Interactive mode ─────────────────────────────────────                
+      54 +                  
       55 +const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: process.stdin.isTTY !== false })        
-      56 +const ask = (q: string, def?: string): Promise<string> =>                                                                             
+      56 +const ask = (q: string, def?: string): Promise<string> =>                   
       57 +  new Promise(r => rl.question(`${q}${def ? ` (${def})` : ''}: `, a => r(a.trim() || def || '')))                                     
-      58 +                                                                                                                                      
+      58 +                  
       59  async function main() {
       60    console.log(`\n${CYAN}  MostaSetup — Generateur de setup.json${NC}\n`)
       61  
@@ -586,7 +586,7 @@
      > tsc
   ⎿  (timeout 15s)
 
-❯ le scritp dans le repertoire descript                                                                                                                
+❯ le scritp dans le repertoire descript                                                      
 
 ● D'accord — test dans le répertoire des scripts. Testons le mode --quick (non-interactif) et le loadSetupJson ensemble.
 
@@ -622,15 +622,15 @@
        5  # Usage: ./test-cli-init.sh
        6  
        7  set -euo pipefail
-       8 -cd "$(dirname "$0")/.."                                                                                                               
+       8 -cd "$(dirname "$0")/.."                                                     
        8  
-      10 -CLI="../../mostajs/mosta-setup/dist/cli/init.js"                                                                                      
-       9 +SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"                                                                                           
-      10 +PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"                                                                                           
-      11 +CLI="$(cd "$SCRIPT_DIR/../../mostajs/mosta-setup" && pwd)/dist/cli/init.js"                                                           
+      10 -CLI="../../mostajs/mosta-setup/dist/cli/init.js"                            
+       9 +SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"                                 
+      10 +PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"                                 
+      11 +CLI="$(cd "$SCRIPT_DIR/../../mostajs/mosta-setup" && pwd)/dist/cli/init.js" 
       12 +LOADER_PATH="$(cd "$SCRIPT_DIR/../../mostajs/mosta-setup" && pwd)/dist/lib/load-setup-json.js"                                        
       13  TMPDIR=$(mktemp -d)
-      14 +                                                                                                                                      
+      14 +                  
       15  RED='\033[0;31m'
       16  GREEN='\033[0;32m'
       17  CYAN='\033[0;36m'
@@ -638,21 +638,21 @@
        31  
        32  # ── Test 1: --quick generates valid JSON ──────────────────
        33  
-       31 -echo -n "  1. --quick minimal ... "                                                                                                  
-       32 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
+       31 -echo -n "  1. --quick minimal ... "                                        
+       32 -cd "$TMPDIR" && rm -f setup.json                                           
        33 -node "$OLDPWD/$CLI" --quick --name TestApp --port 4500 --db testdb 2>/dev/null                                                       
-       34 -if [ -f setup.json ]; then                                                                                                           
+       34 -if [ -f setup.json ]; then                                                 
        35 -  NAME=$(node -e "console.log(JSON.parse(require('fs').readFileSync('setup.json','utf-8')).app.name)")                               
        36 -  PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('setup.json','utf-8')).app.port)")                               
        37 -  DB=$(node -e "console.log(JSON.parse(require('fs').readFileSync('setup.json','utf-8')).app.dbNamePrefix)")                         
-       34 +rm -f "$TMPDIR/setup.json"                                                                                                           
+       34 +rm -f "$TMPDIR/setup.json"                                                 
        35 +(cd "$TMPDIR" && node "$CLI" --quick --name TestApp --port 4500 --db testdb 2>/dev/null)                                             
-       36 +if [ -f "$TMPDIR/setup.json" ]; then                                                                                                 
+       36 +if [ -f "$TMPDIR/setup.json" ]; then                                       
        37 +  NAME=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8')).app.name)")                       
        38 +  PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8')).app.port)")                       
        39 +  DB=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8')).app.dbNamePrefix)")                 
        40    if [ "$NAME" = "TestApp" ] && [ "$PORT" = "4500" ] && [ "$DB" = "testdb" ]; then
-       39 -    ok "--quick generates correct app config"                                                                                        
+       39 -    ok "--quick generates correct app config"                              
        41 +    ok "--quick generates correct app config (name=$NAME port=$PORT db=$DB)"                                                         
        42    else
        43      fail "--quick" "got name=$NAME port=$PORT db=$DB"
@@ -660,118 +660,118 @@
        45  else
        46    fail "--quick" "setup.json not created"
        47  fi
-       46 -cd "$OLDPWD"                                                                                                                         
+       46 -cd "$OLDPWD"     
        48  
        49  # ── Test 2: --quick with --modules ────────────────────────
        50  
-       50 -echo -n "  2. --quick with modules ... "                                                                                             
-       51 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
+       50 -echo -n "  2. --quick with modules ... "                                   
+       51 -cd "$TMPDIR" && rm -f setup.json                                           
        52 -node "$OLDPWD/$CLI" --quick --name ModApp --modules "orm,auth,setup" 2>/dev/null                                                     
-       53 -if [ -f setup.json ]; then                                                                                                           
+       53 -if [ -f setup.json ]; then                                                 
        54 -  MODS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('setup.json','utf-8')).env?.MOSTAJS_MODULES || '')")             
-       51 +rm -f "$TMPDIR/setup.json"                                                                                                           
+       51 +rm -f "$TMPDIR/setup.json"                                                 
        52 +(cd "$TMPDIR" && node "$CLI" --quick --name ModApp --modules "orm,auth,setup" 2>/dev/null)                                           
-       53 +if [ -f "$TMPDIR/setup.json" ]; then                                                                                                 
+       53 +if [ -f "$TMPDIR/setup.json" ]; then                                       
        54 +  MODS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8')).env?.MOSTAJS_MODULES || '')")     
        55    if [ "$MODS" = "orm,auth,setup" ]; then
-       56 -    ok "--quick with modules"                                                                                                        
-       56 +    ok "--quick with --modules (MOSTAJS_MODULES=$MODS)"                                                                              
+       56 -    ok "--quick with modules"                                              
+       56 +    ok "--quick with --modules (MOSTAJS_MODULES=$MODS)"                    
        57    else
        58      fail "--modules" "got MOSTAJS_MODULES=$MODS"
        59    fi
        60  else
        61    fail "--modules" "setup.json not created"
        62  fi
-       63 -cd "$OLDPWD"                                                                                                                         
+       63 -cd "$OLDPWD"     
        63  
        64  # ── Test 3: --stdout outputs to stdout ────────────────────
        65  
-       67 -echo -n "  3. --stdout ... "                                                                                                         
-       68 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
-       69 -OUTPUT=$(node "$OLDPWD/$CLI" --quick --name StdoutApp --stdout 2>/dev/null)                                                          
-       66 +rm -f "$TMPDIR/setup.json"                                                                                                           
+       67 -echo -n "  3. --stdout ... "                                               
+       68 -cd "$TMPDIR" && rm -f setup.json                                           
+       69 -OUTPUT=$(node "$OLDPWD/$CLI" --quick --name StdoutApp --stdout 2>/dev/null)
+       66 +rm -f "$TMPDIR/setup.json"                                                 
        67 +OUTPUT=$(cd "$TMPDIR" && node "$CLI" --quick --name StdoutApp --stdout 2>/dev/null)                                                  
        68  if echo "$OUTPUT" | grep -q '"name": "StdoutApp"'; then
-       71 -  if [ ! -f setup.json ]; then                                                                                                       
-       72 -    ok "--stdout writes to stdout, not file"                                                                                         
-       69 +  if [ ! -f "$TMPDIR/setup.json" ]; then                                                                                             
-       70 +    ok "--stdout writes to stdout, no file created"                                                                                  
+       71 -  if [ ! -f setup.json ]; then                                             
+       72 -    ok "--stdout writes to stdout, not file"                               
+       69 +  if [ ! -f "$TMPDIR/setup.json" ]; then                                   
+       70 +    ok "--stdout writes to stdout, no file created"                        
        71    else
        72      fail "--stdout" "file was also created"
        73    fi
        74  else
        75    fail "--stdout" "output does not contain app name"
        76  fi
-       79 -cd "$OLDPWD"                                                                                                                         
+       79 -cd "$OLDPWD"     
        77  
        78  # ── Test 4: $schema is present ────────────────────────────
        79  
-       83 -echo -n "  4. \$schema field ... "                                                                                                   
-       84 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
-       85 -node "$OLDPWD/$CLI" --quick --name SchemaApp 2>/dev/null                                                                             
+       83 -echo -n "  4. \$schema field ... "                                         
+       84 -cd "$TMPDIR" && rm -f setup.json                                           
+       85 -node "$OLDPWD/$CLI" --quick --name SchemaApp 2>/dev/null                   
        86 -SCHEMA=$(node -e "console.log(JSON.parse(require('fs').readFileSync('setup.json','utf-8'))['\$schema'] || '')")                      
-       80 +rm -f "$TMPDIR/setup.json"                                                                                                           
-       81 +(cd "$TMPDIR" && node "$CLI" --quick --name SchemaApp 2>/dev/null)                                                                   
+       80 +rm -f "$TMPDIR/setup.json"                                                 
+       81 +(cd "$TMPDIR" && node "$CLI" --quick --name SchemaApp 2>/dev/null)         
        82 +SCHEMA=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8'))['\$schema'] || '')")              
        83  if echo "$SCHEMA" | grep -q "mostajs.dev/schemas"; then
        84    ok "\$schema references mostajs.dev"
        85  else
        86    fail "\$schema" "got $SCHEMA"
        87  fi
-       92 -cd "$OLDPWD"                                                                                                                         
+       92 -cd "$OLDPWD"     
        88  
        89  # ── Test 5: default port omitted ──────────────────────────
        90  
-       96 -echo -n "  5. default port omitted ... "                                                                                             
-       97 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
-       98 -node "$OLDPWD/$CLI" --quick --name DefPort 2>/dev/null                                                                               
+       96 -echo -n "  5. default port omitted ... "                                   
+       97 -cd "$TMPDIR" && rm -f setup.json                                           
+       98 -node "$OLDPWD/$CLI" --quick --name DefPort 2>/dev/null                     
        99 -HAS_PORT=$(node -e "const j=JSON.parse(require('fs').readFileSync('setup.json','utf-8')); console.log('port' in j.app ? 'yes' : 'no')
-          -")                                                                                                                                   
-       91 +rm -f "$TMPDIR/setup.json"                                                                                                           
-       92 +(cd "$TMPDIR" && node "$CLI" --quick --name DefPort 2>/dev/null)                                                                     
+          -")               
+       91 +rm -f "$TMPDIR/setup.json"                                                 
+       92 +(cd "$TMPDIR" && node "$CLI" --quick --name DefPort 2>/dev/null)           
        93 +HAS_PORT=$(node -e "const j=JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8')); console.log('port' in j.app ? 'yes'
-          + : 'no')")                                                                                                                           
+          + : 'no')")       
        94  if [ "$HAS_PORT" = "no" ]; then
-      101 -  ok "port 3000 omitted from output"                                                                                                 
-       95 +  ok "port=3000 omitted from output (clean JSON)"                                                                                    
+      101 -  ok "port 3000 omitted from output"                                       
+       95 +  ok "port=3000 omitted from output (clean JSON)"                          
        96  else
-      103 -  fail "default port" "port should not be in output"                                                                                 
-       97 +  fail "default port" "port should not be in output when 3000"                                                                       
+      103 -  fail "default port" "port should not be in output"                       
+       97 +  fail "default port" "port should not be in output when 3000"             
        98  fi
-      105 -cd "$OLDPWD"                                                                                                                         
+      105 -cd "$OLDPWD"     
        99  
       100  # ── Test 6: loadSetupJson reads CLI-generated file ────────
       101  
-      109 -echo -n "  6. loadSetupJson reads CLI output ... "                                                                                   
-      110 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
+      109 -echo -n "  6. loadSetupJson reads CLI output ... "                         
+      110 -cd "$TMPDIR" && rm -f setup.json                                           
       111 -node "$OLDPWD/$CLI" --quick --name LoadTest --port 5555 --db loadtestdb --modules "orm,auth" 2>/dev/null                             
-      112 -LOAD_RESULT=$(node -e "                                                                                                              
+      112 -LOAD_RESULT=$(node -e "                                                    
       113 -  import('$OLDPWD/../../mostajs/mosta-setup/dist/lib/load-setup-json.js').then(m => {                                                
-      114 -    m.loadSetupJson('$TMPDIR/setup.json').then(config => {                                                                           
-      115 -      console.log(JSON.stringify({                                                                                                   
-      116 -        name: config.appName,                                                                                                        
-      117 -        port: config.defaultPort,                                                                                                    
-      118 -        env: config.extraEnvVars?.MOSTAJS_MODULES || ''                                                                              
-      119 -      }))                                                                                                                            
-      120 -    })                                                                                                                               
-      121 -  }).catch(e => console.log('ERROR: ' + e.message))                                                                                  
-      122 -" 2>/dev/null)                                                                                                                       
-      102 +rm -f "$TMPDIR/setup.json"                                                                                                           
+      114 -    m.loadSetupJson('$TMPDIR/setup.json').then(config => {                 
+      115 -      console.log(JSON.stringify({                                         
+      116 -        name: config.appName,                                              
+      117 -        port: config.defaultPort,                                          
+      118 -        env: config.extraEnvVars?.MOSTAJS_MODULES || ''                    
+      119 -      }))        
+      120 -    })           
+      121 -  }).catch(e => console.log('ERROR: ' + e.message))                        
+      122 -" 2>/dev/null)   
+      102 +rm -f "$TMPDIR/setup.json"                                                 
       103 +(cd "$TMPDIR" && node "$CLI" --quick --name LoadTest --port 5555 --db loadtestdb --modules "orm,auth" 2>/dev/null)                   
-      104 +LOAD_RESULT=$(node --input-type=module -e "                                                                                          
-      105 +import { loadSetupJson } from '$LOADER_PATH'                                                                                         
-      106 +const config = await loadSetupJson('$TMPDIR/setup.json')                                                                             
+      104 +LOAD_RESULT=$(node --input-type=module -e "                                
+      105 +import { loadSetupJson } from '$LOADER_PATH'                               
+      106 +const config = await loadSetupJson('$TMPDIR/setup.json')                   
       107 +console.log(JSON.stringify({ name: config.appName, port: config.defaultPort, env: config.extraEnvVars?.MOSTAJS_MODULES || '' }))     
-      108 +" 2>/dev/null || echo '{"name":"ERROR"}')                                                                                            
+      108 +" 2>/dev/null || echo '{"name":"ERROR"}')                                  
       109  LNAME=$(echo "$LOAD_RESULT" | node -e "process.stdin.on('data',d=>{try{console.log(JSON.parse(d).name)}catch{console.log('ERR')}})")
       110  LPORT=$(echo "$LOAD_RESULT" | node -e "process.stdin.on('data',d=>{try{console.log(JSON.parse(d).port)}catch{console.log('ERR')}})")
       111  if [ "$LNAME" = "LoadTest" ] && [ "$LPORT" = "5555" ]; then
       112    ok "loadSetupJson parses CLI-generated setup.json"
       113  else
-      128 -  fail "loadSetupJson" "got name=$LNAME port=$LPORT from: $LOAD_RESULT"                                                              
-      114 +  fail "loadSetupJson" "got name=$LNAME port=$LPORT"                                                                                 
+      128 -  fail "loadSetupJson" "got name=$LNAME port=$LPORT from: $LOAD_RESULT"    
+      114 +  fail "loadSetupJson" "got name=$LNAME port=$LPORT"                       
       115  fi
-      130 -cd "$OLDPWD"                                                                                                                         
+      130 -cd "$OLDPWD"     
       116  
       117  # ── Cleanup ───────────────────────────────────────────────
       118  
@@ -793,10 +793,10 @@
       20  PASSED=0
       21  FAILED=0
       22  
-      23 -ok()   { echo -e "  ${GREEN}✓${NC} $1"; ((PASSED++)); }                                                                               
-      24 -fail() { echo -e "  ${RED}✗${NC} $1: $2"; ((FAILED++)); }                                                                             
-      23 +ok()   { echo -e "  ${GREEN}✓${NC} $1"; PASSED=$((PASSED+1)); }                                                                       
-      24 +fail() { echo -e "  ${RED}✗${NC} $1: $2"; FAILED=$((FAILED+1)); }                                                                     
+      23 -ok()   { echo -e "  ${GREEN}✓${NC} $1"; ((PASSED++)); }                     
+      24 -fail() { echo -e "  ${RED}✗${NC} $1: $2"; ((FAILED++)); }                   
+      23 +ok()   { echo -e "  ${GREEN}✓${NC} $1"; PASSED=$((PASSED+1)); }             
+      24 +fail() { echo -e "  ${RED}✗${NC} $1: $2"; FAILED=$((FAILED+1)); }           
       25  
       26  echo ""
       27  echo -e "${CYAN}════════════════════════════════════════════════════════${NC}"
@@ -827,7 +827,7 @@
 
 ✻ Cooked for 3m 22s
 
-❯ commit push sans infos claude,  continue                                                                                                             
+❯ commit push sans infos claude,  continue                                                   
 
 ● Bash(cd /home/hmd/dev/MostaGare-Install/mostajs/mosta-setup && git add -A && git commit -m "feat: CLI init (--quick, --stdout, interactive), rebuild
       dist" && git pus…)
@@ -856,7 +856,7 @@
   ⎿  origin     https://github.com/apolocine/mosta-setup-studio.git (fetch)
      origin     https://github.com/apolocine/mosta-setup-studio.git (push)
 
-❯ agoute les exemple et le manuelle d'utilisation dans le readme                                                                                       
+❯ agoute les exemple et le manuelle d'utilisation dans le readme                             
 
 ● Bash(git push origin master 2>&1 | tail -3)
   ⎿  To https://github.com/apolocine/mosta-setup-studio.git
@@ -1018,15 +1018,15 @@
        5  # Usage: ./test-cli-init.sh
        6  
        7  set -euo pipefail
-       8 -cd "$(dirname "$0")/.."                                                                                                               
+       8 -cd "$(dirname "$0")/.."                                                     
        8  
-      10 -CLI="../../mostajs/mosta-setup/dist/cli/init.js"                                                                                      
-       9 +SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"                                                                                           
-      10 +PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"                                                                                           
-      11 +CLI="$(cd "$SCRIPT_DIR/../../mostajs/mosta-setup" && pwd)/dist/cli/init.js"                                                           
+      10 -CLI="../../mostajs/mosta-setup/dist/cli/init.js"                            
+       9 +SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"                                 
+      10 +PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"                                 
+      11 +CLI="$(cd "$SCRIPT_DIR/../../mostajs/mosta-setup" && pwd)/dist/cli/init.js" 
       12 +LOADER_PATH="$(cd "$SCRIPT_DIR/../../mostajs/mosta-setup" && pwd)/dist/lib/load-setup-json.js"                                        
       13  TMPDIR=$(mktemp -d)
-      14 +                                                                                                                                      
+      14 +                  
       15  RED='\033[0;31m'
       16  GREEN='\033[0;32m'
       17  CYAN='\033[0;36m'
@@ -1034,21 +1034,21 @@
        31  
        32  # ── Test 1: --quick generates valid JSON ──────────────────
        33  
-       31 -echo -n "  1. --quick minimal ... "                                                                                                  
-       32 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
+       31 -echo -n "  1. --quick minimal ... "                                        
+       32 -cd "$TMPDIR" && rm -f setup.json                                           
        33 -node "$OLDPWD/$CLI" --quick --name TestApp --port 4500 --db testdb 2>/dev/null                                                       
-       34 -if [ -f setup.json ]; then                                                                                                           
+       34 -if [ -f setup.json ]; then                                                 
        35 -  NAME=$(node -e "console.log(JSON.parse(require('fs').readFileSync('setup.json','utf-8')).app.name)")                               
        36 -  PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('setup.json','utf-8')).app.port)")                               
        37 -  DB=$(node -e "console.log(JSON.parse(require('fs').readFileSync('setup.json','utf-8')).app.dbNamePrefix)")                         
-       34 +rm -f "$TMPDIR/setup.json"                                                                                                           
+       34 +rm -f "$TMPDIR/setup.json"                                                 
        35 +(cd "$TMPDIR" && node "$CLI" --quick --name TestApp --port 4500 --db testdb 2>/dev/null)                                             
-       36 +if [ -f "$TMPDIR/setup.json" ]; then                                                                                                 
+       36 +if [ -f "$TMPDIR/setup.json" ]; then                                       
        37 +  NAME=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8')).app.name)")                       
        38 +  PORT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8')).app.port)")                       
        39 +  DB=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8')).app.dbNamePrefix)")                 
        40    if [ "$NAME" = "TestApp" ] && [ "$PORT" = "4500" ] && [ "$DB" = "testdb" ]; then
-       39 -    ok "--quick generates correct app config"                                                                                        
+       39 -    ok "--quick generates correct app config"                              
        41 +    ok "--quick generates correct app config (name=$NAME port=$PORT db=$DB)"                                                         
        42    else
        43      fail "--quick" "got name=$NAME port=$PORT db=$DB"
@@ -1056,118 +1056,118 @@
        45  else
        46    fail "--quick" "setup.json not created"
        47  fi
-       46 -cd "$OLDPWD"                                                                                                                         
+       46 -cd "$OLDPWD"     
        48  
        49  # ── Test 2: --quick with --modules ────────────────────────
        50  
-       50 -echo -n "  2. --quick with modules ... "                                                                                             
-       51 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
+       50 -echo -n "  2. --quick with modules ... "                                   
+       51 -cd "$TMPDIR" && rm -f setup.json                                           
        52 -node "$OLDPWD/$CLI" --quick --name ModApp --modules "orm,auth,setup" 2>/dev/null                                                     
-       53 -if [ -f setup.json ]; then                                                                                                           
+       53 -if [ -f setup.json ]; then                                                 
        54 -  MODS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('setup.json','utf-8')).env?.MOSTAJS_MODULES || '')")             
-       51 +rm -f "$TMPDIR/setup.json"                                                                                                           
+       51 +rm -f "$TMPDIR/setup.json"                                                 
        52 +(cd "$TMPDIR" && node "$CLI" --quick --name ModApp --modules "orm,auth,setup" 2>/dev/null)                                           
-       53 +if [ -f "$TMPDIR/setup.json" ]; then                                                                                                 
+       53 +if [ -f "$TMPDIR/setup.json" ]; then                                       
        54 +  MODS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8')).env?.MOSTAJS_MODULES || '')")     
        55    if [ "$MODS" = "orm,auth,setup" ]; then
-       56 -    ok "--quick with modules"                                                                                                        
-       56 +    ok "--quick with --modules (MOSTAJS_MODULES=$MODS)"                                                                              
+       56 -    ok "--quick with modules"                                              
+       56 +    ok "--quick with --modules (MOSTAJS_MODULES=$MODS)"                    
        57    else
        58      fail "--modules" "got MOSTAJS_MODULES=$MODS"
        59    fi
        60  else
        61    fail "--modules" "setup.json not created"
        62  fi
-       63 -cd "$OLDPWD"                                                                                                                         
+       63 -cd "$OLDPWD"     
        63  
        64  # ── Test 3: --stdout outputs to stdout ────────────────────
        65  
-       67 -echo -n "  3. --stdout ... "                                                                                                         
-       68 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
-       69 -OUTPUT=$(node "$OLDPWD/$CLI" --quick --name StdoutApp --stdout 2>/dev/null)                                                          
-       66 +rm -f "$TMPDIR/setup.json"                                                                                                           
+       67 -echo -n "  3. --stdout ... "                                               
+       68 -cd "$TMPDIR" && rm -f setup.json                                           
+       69 -OUTPUT=$(node "$OLDPWD/$CLI" --quick --name StdoutApp --stdout 2>/dev/null)
+       66 +rm -f "$TMPDIR/setup.json"                                                 
        67 +OUTPUT=$(cd "$TMPDIR" && node "$CLI" --quick --name StdoutApp --stdout 2>/dev/null)                                                  
        68  if echo "$OUTPUT" | grep -q '"name": "StdoutApp"'; then
-       71 -  if [ ! -f setup.json ]; then                                                                                                       
-       72 -    ok "--stdout writes to stdout, not file"                                                                                         
-       69 +  if [ ! -f "$TMPDIR/setup.json" ]; then                                                                                             
-       70 +    ok "--stdout writes to stdout, no file created"                                                                                  
+       71 -  if [ ! -f setup.json ]; then                                             
+       72 -    ok "--stdout writes to stdout, not file"                               
+       69 +  if [ ! -f "$TMPDIR/setup.json" ]; then                                   
+       70 +    ok "--stdout writes to stdout, no file created"                        
        71    else
        72      fail "--stdout" "file was also created"
        73    fi
        74  else
        75    fail "--stdout" "output does not contain app name"
        76  fi
-       79 -cd "$OLDPWD"                                                                                                                         
+       79 -cd "$OLDPWD"     
        77  
        78  # ── Test 4: $schema is present ────────────────────────────
        79  
-       83 -echo -n "  4. \$schema field ... "                                                                                                   
-       84 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
-       85 -node "$OLDPWD/$CLI" --quick --name SchemaApp 2>/dev/null                                                                             
+       83 -echo -n "  4. \$schema field ... "                                         
+       84 -cd "$TMPDIR" && rm -f setup.json                                           
+       85 -node "$OLDPWD/$CLI" --quick --name SchemaApp 2>/dev/null                   
        86 -SCHEMA=$(node -e "console.log(JSON.parse(require('fs').readFileSync('setup.json','utf-8'))['\$schema'] || '')")                      
-       80 +rm -f "$TMPDIR/setup.json"                                                                                                           
-       81 +(cd "$TMPDIR" && node "$CLI" --quick --name SchemaApp 2>/dev/null)                                                                   
+       80 +rm -f "$TMPDIR/setup.json"                                                 
+       81 +(cd "$TMPDIR" && node "$CLI" --quick --name SchemaApp 2>/dev/null)         
        82 +SCHEMA=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8'))['\$schema'] || '')")              
        83  if echo "$SCHEMA" | grep -q "mostajs.dev/schemas"; then
        84    ok "\$schema references mostajs.dev"
        85  else
        86    fail "\$schema" "got $SCHEMA"
        87  fi
-       92 -cd "$OLDPWD"                                                                                                                         
+       92 -cd "$OLDPWD"     
        88  
        89  # ── Test 5: default port omitted ──────────────────────────
        90  
-       96 -echo -n "  5. default port omitted ... "                                                                                             
-       97 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
-       98 -node "$OLDPWD/$CLI" --quick --name DefPort 2>/dev/null                                                                               
+       96 -echo -n "  5. default port omitted ... "                                   
+       97 -cd "$TMPDIR" && rm -f setup.json                                           
+       98 -node "$OLDPWD/$CLI" --quick --name DefPort 2>/dev/null                     
        99 -HAS_PORT=$(node -e "const j=JSON.parse(require('fs').readFileSync('setup.json','utf-8')); console.log('port' in j.app ? 'yes' : 'no')
-          -")                                                                                                                                   
-       91 +rm -f "$TMPDIR/setup.json"                                                                                                           
-       92 +(cd "$TMPDIR" && node "$CLI" --quick --name DefPort 2>/dev/null)                                                                     
+          -")               
+       91 +rm -f "$TMPDIR/setup.json"                                                 
+       92 +(cd "$TMPDIR" && node "$CLI" --quick --name DefPort 2>/dev/null)           
        93 +HAS_PORT=$(node -e "const j=JSON.parse(require('fs').readFileSync('$TMPDIR/setup.json','utf-8')); console.log('port' in j.app ? 'yes'
-          + : 'no')")                                                                                                                           
+          + : 'no')")       
        94  if [ "$HAS_PORT" = "no" ]; then
-      101 -  ok "port 3000 omitted from output"                                                                                                 
-       95 +  ok "port=3000 omitted from output (clean JSON)"                                                                                    
+      101 -  ok "port 3000 omitted from output"                                       
+       95 +  ok "port=3000 omitted from output (clean JSON)"                          
        96  else
-      103 -  fail "default port" "port should not be in output"                                                                                 
-       97 +  fail "default port" "port should not be in output when 3000"                                                                       
+      103 -  fail "default port" "port should not be in output"                       
+       97 +  fail "default port" "port should not be in output when 3000"             
        98  fi
-      105 -cd "$OLDPWD"                                                                                                                         
+      105 -cd "$OLDPWD"     
        99  
       100  # ── Test 6: loadSetupJson reads CLI-generated file ────────
       101  
-      109 -echo -n "  6. loadSetupJson reads CLI output ... "                                                                                   
-      110 -cd "$TMPDIR" && rm -f setup.json                                                                                                     
+      109 -echo -n "  6. loadSetupJson reads CLI output ... "                         
+      110 -cd "$TMPDIR" && rm -f setup.json                                           
       111 -node "$OLDPWD/$CLI" --quick --name LoadTest --port 5555 --db loadtestdb --modules "orm,auth" 2>/dev/null                             
-      112 -LOAD_RESULT=$(node -e "                                                                                                              
+      112 -LOAD_RESULT=$(node -e "                                                    
       113 -  import('$OLDPWD/../../mostajs/mosta-setup/dist/lib/load-setup-json.js').then(m => {                                                
-      114 -    m.loadSetupJson('$TMPDIR/setup.json').then(config => {                                                                           
-      115 -      console.log(JSON.stringify({                                                                                                   
-      116 -        name: config.appName,                                                                                                        
-      117 -        port: config.defaultPort,                                                                                                    
-      118 -        env: config.extraEnvVars?.MOSTAJS_MODULES || ''                                                                              
-      119 -      }))                                                                                                                            
-      120 -    })                                                                                                                               
-      121 -  }).catch(e => console.log('ERROR: ' + e.message))                                                                                  
-      122 -" 2>/dev/null)                                                                                                                       
-      102 +rm -f "$TMPDIR/setup.json"                                                                                                           
+      114 -    m.loadSetupJson('$TMPDIR/setup.json').then(config => {                 
+      115 -      console.log(JSON.stringify({                                         
+      116 -        name: config.appName,                                              
+      117 -        port: config.defaultPort,                                          
+      118 -        env: config.extraEnvVars?.MOSTAJS_MODULES || ''                    
+      119 -      }))        
+      120 -    })           
+      121 -  }).catch(e => console.log('ERROR: ' + e.message))                        
+      122 -" 2>/dev/null)   
+      102 +rm -f "$TMPDIR/setup.json"                                                 
       103 +(cd "$TMPDIR" && node "$CLI" --quick --name LoadTest --port 5555 --db loadtestdb --modules "orm,auth" 2>/dev/null)                   
-      104 +LOAD_RESULT=$(node --input-type=module -e "                                                                                          
-      105 +import { loadSetupJson } from '$LOADER_PATH'                                                                                         
-      106 +const config = await loadSetupJson('$TMPDIR/setup.json')                                                                             
+      104 +LOAD_RESULT=$(node --input-type=module -e "                                
+      105 +import { loadSetupJson } from '$LOADER_PATH'                               
+      106 +const config = await loadSetupJson('$TMPDIR/setup.json')                   
       107 +console.log(JSON.stringify({ name: config.appName, port: config.defaultPort, env: config.extraEnvVars?.MOSTAJS_MODULES || '' }))     
-      108 +" 2>/dev/null || echo '{"name":"ERROR"}')                                                                                            
+      108 +" 2>/dev/null || echo '{"name":"ERROR"}')                                  
       109  LNAME=$(echo "$LOAD_RESULT" | node -e "process.stdin.on('data',d=>{try{console.log(JSON.parse(d).name)}catch{console.log('ERR')}})")
       110  LPORT=$(echo "$LOAD_RESULT" | node -e "process.stdin.on('data',d=>{try{console.log(JSON.parse(d).port)}catch{console.log('ERR')}})")
       111  if [ "$LNAME" = "LoadTest" ] && [ "$LPORT" = "5555" ]; then
       112    ok "loadSetupJson parses CLI-generated setup.json"
       113  else
-      128 -  fail "loadSetupJson" "got name=$LNAME port=$LPORT from: $LOAD_RESULT"                                                              
-      114 +  fail "loadSetupJson" "got name=$LNAME port=$LPORT"                                                                                 
+      128 -  fail "loadSetupJson" "got name=$LNAME port=$LPORT from: $LOAD_RESULT"    
+      114 +  fail "loadSetupJson" "got name=$LNAME port=$LPORT"                       
       115  fi
-      130 -cd "$OLDPWD"                                                                                                                         
+      130 -cd "$OLDPWD"     
       116  
       117  # ── Cleanup ───────────────────────────────────────────────
       118  
@@ -1189,10 +1189,10 @@
       20  PASSED=0
       21  FAILED=0
       22  
-      23 -ok()   { echo -e "  ${GREEN}✓${NC} $1"; ((PASSED++)); }                                                                               
-      24 -fail() { echo -e "  ${RED}✗${NC} $1: $2"; ((FAILED++)); }                                                                             
-      23 +ok()   { echo -e "  ${GREEN}✓${NC} $1"; PASSED=$((PASSED+1)); }                                                                       
-      24 +fail() { echo -e "  ${RED}✗${NC} $1: $2"; FAILED=$((FAILED+1)); }                                                                     
+      23 -ok()   { echo -e "  ${GREEN}✓${NC} $1"; ((PASSED++)); }                     
+      24 -fail() { echo -e "  ${RED}✗${NC} $1: $2"; ((FAILED++)); }                   
+      23 +ok()   { echo -e "  ${GREEN}✓${NC} $1"; PASSED=$((PASSED+1)); }             
+      24 +fail() { echo -e "  ${RED}✗${NC} $1: $2"; FAILED=$((FAILED+1)); }           
       25  
       26  echo ""
       27  echo -e "${CYAN}════════════════════════════════════════════════════════${NC}"
@@ -1223,7 +1223,7 @@
 
 ✻ Cooked for 3m 22s
 
-❯ commit push sans infos claude,  continue                                                                                                             
+❯ commit push sans infos claude,  continue                                                   
 
 ● Bash(cd /home/hmd/dev/MostaGare-Install/mostajs/mosta-setup && git add -A && git commit -m "feat: CLI init (--quick, --stdout, interactive), rebuild
       dist" && git pus…)
@@ -1252,7 +1252,7 @@
   ⎿  origin     https://github.com/apolocine/mosta-setup-studio.git (fetch)
      origin     https://github.com/apolocine/mosta-setup-studio.git (push)
 
-❯ agoute les exemple et le manuelle d'utilisation dans le readme                                                                                       
+❯ agoute les exemple et le manuelle d'utilisation dans le readme                             
 
 ● Bash(git push origin master 2>&1 | tail -3)
   ⎿  To https://github.com/apolocine/mosta-setup-studio.git
@@ -1391,7 +1391,7 @@
 
 ❯ 1- ajoute dans le code a Integration dans le projet: si le projet doit actionner le /setup  et il ne trouve pas le fichier setup.json il affiche un  
 message et demande avec un formulaire d'upload du setup.json , 2- ajoute un exemple dans setup-studio   3- documente plus le module setup avec les     
-nouvelles fonctionnalitées,                                                                                                                            
+nouvelles fonctionnalitées,        
 
 ● Commençons par les 3 points en parallèle. D'abord, lisons les fichiers à modifier.
 
@@ -1429,7 +1429,7 @@ nouvelles fonctionnalitées,
       25  export { createReconfigHandlers } from './api/reconfig.route'
       26  export { createUploadJarHandlers } from './api/upload-jar.route'
       27  export { createWireModuleHandler } from './api/wire-module.route'
-      28 +export { createSetupJsonHandler } from './api/upload-setup-json.route'                                                                
+      28 +export { createSetupJsonHandler } from './api/upload-setup-json.route'      
       29  
       30  // Components
       31  export { default as ReconfigPanel } from './components/ReconfigPanel'
@@ -1454,7 +1454,7 @@ nouvelles fonctionnalitées,
         1  // Author: Dr Hamid MADANI drmdh@msn.com
         2  'use client'
         3  
-        4 +import { useState, useEffect, useCallback } from 'react'                                                                             
+        4 +import { useState, useEffect, useCallback } from 'react'                   
         5  import { useRouter } from 'next/navigation'
         6  import SetupWizard from '@mostajs/setup/components/SetupWizard'
         7  import { t } from '@/i18n'
@@ -1462,160 +1462,160 @@ nouvelles fonctionnalitées,
         9  export default function SetupPage() {
        10    const router = useRouter()
        11 +  const [setupJsonStatus, setSetupJsonStatus] = useState<'loading' | 'found' | 'missing'>('loading')                                 
-       12 +  const [uploading, setUploading] = useState(false)                                                                                  
-       13 +  const [uploadError, setUploadError] = useState<string | null>(null)                                                                
-       14 +  const [dragOver, setDragOver] = useState(false)                                                                                    
+       12 +  const [uploading, setUploading] = useState(false)                        
+       13 +  const [uploadError, setUploadError] = useState<string | null>(null)      
+       14 +  const [dragOver, setDragOver] = useState(false)                          
        15  
-       16 +  useEffect(() => {                                                                                                                  
-       17 +    fetch('/api/setup/setup-json')                                                                                                   
-       18 +      .then(r => r.json())                                                                                                           
-       19 +      .then(data => setSetupJsonStatus(data.exists ? 'found' : 'missing'))                                                           
-       20 +      .catch(() => setSetupJsonStatus('missing'))                                                                                    
-       21 +  }, [])                                                                                                                             
-       22 +                                                                                                                                     
-       23 +  const handleUpload = useCallback(async (file: File) => {                                                                           
-       24 +    setUploading(true)                                                                                                               
-       25 +    setUploadError(null)                                                                                                             
-       26 +    try {                                                                                                                            
-       27 +      const text = await file.text()                                                                                                 
-       28 +      const json = JSON.parse(text)                                                                                                  
-       29 +      if (!json.app?.name) {                                                                                                         
-       30 +        setUploadError('Le fichier doit contenir "app.name"')                                                                        
-       31 +        setUploading(false)                                                                                                          
-       32 +        return                                                                                                                       
-       33 +      }                                                                                                                              
-       34 +      const res = await fetch('/api/setup/setup-json', {                                                                             
-       35 +        method: 'POST',                                                                                                              
-       36 +        headers: { 'Content-Type': 'application/json' },                                                                             
-       37 +        body: text,                                                                                                                  
-       38 +      })                                                                                                                             
-       39 +      const data = await res.json()                                                                                                  
-       40 +      if (data.ok) {                                                                                                                 
-       41 +        setSetupJsonStatus('found')                                                                                                  
-       42 +      } else {                                                                                                                       
-       43 +        setUploadError(data.error || 'Erreur lors de l\'upload')                                                                     
-       44 +      }                                                                                                                              
-       45 +    } catch {                                                                                                                        
-       46 +      setUploadError('Fichier JSON invalide')                                                                                        
-       47 +    }                                                                                                                                
-       48 +    setUploading(false)                                                                                                              
-       49 +  }, [])                                                                                                                             
-       50 +                                                                                                                                     
+       16 +  useEffect(() => {                                                        
+       17 +    fetch('/api/setup/setup-json')                                         
+       18 +      .then(r => r.json())                                                 
+       19 +      .then(data => setSetupJsonStatus(data.exists ? 'found' : 'missing')) 
+       20 +      .catch(() => setSetupJsonStatus('missing'))                          
+       21 +  }, [])         
+       22 +                 
+       23 +  const handleUpload = useCallback(async (file: File) => {                 
+       24 +    setUploading(true)                                                     
+       25 +    setUploadError(null)                                                   
+       26 +    try {        
+       27 +      const text = await file.text()                                       
+       28 +      const json = JSON.parse(text)                                        
+       29 +      if (!json.app?.name) {                                               
+       30 +        setUploadError('Le fichier doit contenir "app.name"')              
+       31 +        setUploading(false)                                                
+       32 +        return   
+       33 +      }          
+       34 +      const res = await fetch('/api/setup/setup-json', {                   
+       35 +        method: 'POST',                                                    
+       36 +        headers: { 'Content-Type': 'application/json' },                   
+       37 +        body: text,                                                        
+       38 +      })         
+       39 +      const data = await res.json()                                        
+       40 +      if (data.ok) {                                                       
+       41 +        setSetupJsonStatus('found')                                        
+       42 +      } else {   
+       43 +        setUploadError(data.error || 'Erreur lors de l\'upload')           
+       44 +      }          
+       45 +    } catch {    
+       46 +      setUploadError('Fichier JSON invalide')                              
+       47 +    }            
+       48 +    setUploading(false)                                                    
+       49 +  }, [])         
+       50 +                 
        51 +  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {                                                  
-       52 +    const file = e.target.files?.[0]                                                                                                 
-       53 +    if (file) handleUpload(file)                                                                                                     
-       54 +  }, [handleUpload])                                                                                                                 
-       55 +                                                                                                                                     
-       56 +  const handleDrop = useCallback((e: React.DragEvent) => {                                                                           
-       57 +    e.preventDefault()                                                                                                               
-       58 +    setDragOver(false)                                                                                                               
-       59 +    const file = e.dataTransfer.files[0]                                                                                             
-       60 +    if (file && file.name.endsWith('.json')) handleUpload(file)                                                                      
-       61 +  }, [handleUpload])                                                                                                                 
-       62 +                                                                                                                                     
-       63 +  // Loading state                                                                                                                   
-       64 +  if (setupJsonStatus === 'loading') {                                                                                               
-       65 +    return (                                                                                                                         
-       66 +      <div className="flex items-center justify-center min-h-screen">                                                                
+       52 +    const file = e.target.files?.[0]                                       
+       53 +    if (file) handleUpload(file)                                           
+       54 +  }, [handleUpload])                                                       
+       55 +                 
+       56 +  const handleDrop = useCallback((e: React.DragEvent) => {                 
+       57 +    e.preventDefault()                                                     
+       58 +    setDragOver(false)                                                     
+       59 +    const file = e.dataTransfer.files[0]                                   
+       60 +    if (file && file.name.endsWith('.json')) handleUpload(file)            
+       61 +  }, [handleUpload])                                                       
+       62 +                 
+       63 +  // Loading state                                                         
+       64 +  if (setupJsonStatus === 'loading') {                                     
+       65 +    return (     
+       66 +      <div className="flex items-center justify-center min-h-screen">      
        67 +        <div className="animate-spin h-8 w-8 border-4 border-sky-600 border-t-transparent rounded-full" />                           
-       68 +      </div>                                                                                                                         
-       69 +    )                                                                                                                                
-       70 +  }                                                                                                                                  
-       71 +                                                                                                                                     
-       72 +  // setup.json missing — show upload form                                                                                           
-       73 +  if (setupJsonStatus === 'missing') {                                                                                               
-       74 +    return (                                                                                                                         
-       75 +      <div className="flex items-center justify-center min-h-screen p-4">                                                            
-       76 +        <div className="w-full max-w-lg">                                                                                            
-       77 +          <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6">                                                             
-       78 +            <div className="text-center">                                                                                            
+       68 +      </div>     
+       69 +    )            
+       70 +  }              
+       71 +                 
+       72 +  // setup.json missing — show upload form                                 
+       73 +  if (setupJsonStatus === 'missing') {                                     
+       74 +    return (     
+       75 +      <div className="flex items-center justify-center min-h-screen p-4">  
+       76 +        <div className="w-full max-w-lg">                                  
+       77 +          <div className="bg-white rounded-2xl shadow-xl p-8 space-y-6">   
+       78 +            <div className="text-center">                                  
        79 +              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 mb-4">                    
        80 +                <svg className="h-8 w-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>       
        81 +                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />        
-       82 +                </svg>                                                                                                               
-       83 +              </div>                                                                                                                 
+       82 +                </svg>                                                     
+       83 +              </div>                                                       
        84 +              <h2 className="text-xl font-bold text-gray-900">Fichier setup.json manquant</h2>                                       
-       85 +              <p className="mt-2 text-sm text-gray-500">                                                                             
+       85 +              <p className="mt-2 text-sm text-gray-500">                   
        86 +                L'application a besoin d'un fichier <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">setup.json<
-          +/code> pour                                                                                                                          
-       87 +                configurer les roles, permissions et donnees initiales.                                                              
-       88 +              </p>                                                                                                                   
-       89 +            </div>                                                                                                                   
-       90 +                                                                                                                                     
-       91 +            {/* Upload zone */}                                                                                                      
-       92 +            <div                                                                                                                     
-       93 +              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}                                                          
-       94 +              onDragLeave={() => setDragOver(false)}                                                                                 
-       95 +              onDrop={handleDrop}                                                                                                    
+          +/code> pour      
+       87 +                configurer les roles, permissions et donnees initiales.    
+       88 +              </p>                                                         
+       89 +            </div>                                                         
+       90 +                 
+       91 +            {/* Upload zone */}                                            
+       92 +            <div 
+       93 +              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+       94 +              onDragLeave={() => setDragOver(false)}                       
+       95 +              onDrop={handleDrop}                                          
        96 +              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${                                     
        97 +                dragOver ? 'border-sky-500 bg-sky-50' : 'border-gray-300 hover:border-gray-400'                                      
-       98 +              }`}                                                                                                                    
-       99 +            >                                                                                                                        
+       98 +              }`}
+       99 +            >    
       100 +              <svg className="mx-auto h-10 w-10 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth
-          +={1.5}>                                                                                                                              
+          +={1.5}>          
       101 +                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V
-          +16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />                                                                                          
-      102 +              </svg>                                                                                                                 
-      103 +              <p className="text-sm text-gray-600 mb-2">                                                                             
-      104 +                Glissez-deposez votre <strong>setup.json</strong> ici                                                                
-      105 +              </p>                                                                                                                   
-      106 +              <p className="text-xs text-gray-400 mb-4">ou</p>                                                                       
+          +16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />                                
+      102 +              </svg>                                                       
+      103 +              <p className="text-sm text-gray-600 mb-2">                   
+      104 +                Glissez-deposez votre <strong>setup.json</strong> ici      
+      105 +              </p>                                                         
+      106 +              <p className="text-xs text-gray-400 mb-4">ou</p>             
       107 +              <label className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg cursor-
-          +pointer hover:bg-sky-700 transition-colors">                                                                                         
+          +pointer hover:bg-sky-700 transition-colors">                               
       108 +                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>                      
       109 +                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v1
-          +2" />                                                                                                                                
-      110 +                </svg>                                                                                                               
-      111 +                Choisir un fichier                                                                                                   
+          +2" />            
+      110 +                </svg>                                                     
+      111 +                Choisir un fichier                                         
       112 +                <input type="file" accept=".json" onChange={handleFileInput} className="sr-only" />                                  
-      113 +              </label>                                                                                                               
-      114 +            </div>                                                                                                                   
-      115 +                                                                                                                                     
-      116 +            {uploading && (                                                                                                          
+      113 +              </label>                                                     
+      114 +            </div>                                                         
+      115 +                 
+      116 +            {uploading && (                                                
       117 +              <div className="flex items-center justify-center gap-2 text-sm text-sky-600">                                          
       118 +                <div className="animate-spin h-4 w-4 border-2 border-sky-600 border-t-transparent rounded-full" />                   
-      119 +                Chargement...                                                                                                        
-      120 +              </div>                                                                                                                 
-      121 +            )}                                                                                                                       
-      122 +                                                                                                                                     
-      123 +            {uploadError && (                                                                                                        
+      119 +                Chargement...                                              
+      120 +              </div>                                                       
+      121 +            )}   
+      122 +                 
+      123 +            {uploadError && (                                              
       124 +              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">          
       125 +                <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>        
       126 +                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />                                     
-      127 +                </svg>                                                                                                               
-      128 +                {uploadError}                                                                                                        
-      129 +              </div>                                                                                                                 
-      130 +            )}                                                                                                                       
-      131 +                                                                                                                                     
-      132 +            {/* Help section */}                                                                                                     
-      133 +            <div className="bg-gray-50 rounded-lg p-4 space-y-2">                                                                    
+      127 +                </svg>                                                     
+      128 +                {uploadError}                                              
+      129 +              </div>                                                       
+      130 +            )}   
+      131 +                 
+      132 +            {/* Help section */}                                           
+      133 +            <div className="bg-gray-50 rounded-lg p-4 space-y-2">          
       134 +              <h3 className="text-sm font-semibold text-gray-700">Comment obtenir un setup.json ?</h3>                               
-      135 +              <ul className="text-xs text-gray-500 space-y-1.5">                                                                     
-      136 +                <li className="flex items-start gap-2">                                                                              
+      135 +              <ul className="text-xs text-gray-500 space-y-1.5">           
+      136 +                <li className="flex items-start gap-2">                    
       137 +                  <span className="bg-sky-100 text-sky-700 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bol
-          +d flex-shrink-0 mt-0.5">1</span>                                                                                                     
+          +d flex-shrink-0 mt-0.5">1</span>                                           
       138 +                  <span>Utiliser <strong>MostaSetup Studio</strong> (editeur visuel) pour generer le fichier</span>                  
-      139 +                </li>                                                                                                                
-      140 +                <li className="flex items-start gap-2">                                                                              
+      139 +                </li>                                                      
+      140 +                <li className="flex items-start gap-2">                    
       141 +                  <span className="bg-sky-100 text-sky-700 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bol
-          +d flex-shrink-0 mt-0.5">2</span>                                                                                                     
+          +d flex-shrink-0 mt-0.5">2</span>                                           
       142 +                  <span>Ou lancer <code className="bg-gray-200 px-1 rounded">npx mosta-setup --quick --name MonApp</code> en ligne de
-          + commande</span>                                                                                                                     
-      143 +                </li>                                                                                                                
-      144 +                <li className="flex items-start gap-2">                                                                              
+          + commande</span> 
+      143 +                </li>                                                      
+      144 +                <li className="flex items-start gap-2">                    
       145 +                  <span className="bg-sky-100 text-sky-700 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bol
-          +d flex-shrink-0 mt-0.5">3</span>                                                                                                     
+          +d flex-shrink-0 mt-0.5">3</span>                                           
       146 +                  <span>Ou copier un setup.json existant depuis un autre projet</span>                                               
-      147 +                </li>                                                                                                                
-      148 +              </ul>                                                                                                                  
-      149 +            </div>                                                                                                                   
-      150 +          </div>                                                                                                                     
-      151 +        </div>                                                                                                                       
-      152 +      </div>                                                                                                                         
-      153 +    )                                                                                                                                
-      154 +  }                                                                                                                                  
-      155 +                                                                                                                                     
-      156 +  // setup.json found — show the wizard                                                                                              
+      147 +                </li>                                                      
+      148 +              </ul>                                                        
+      149 +            </div>                                                         
+      150 +          </div> 
+      151 +        </div>   
+      152 +      </div>     
+      153 +    )            
+      154 +  }              
+      155 +                 
+      156 +  // setup.json found — show the wizard                                    
       157    return (
       158      <div className="flex items-center justify-center min-h-screen p-4">
       159        <div className="w-full max-w-2xl">
@@ -1631,21 +1631,21 @@ nouvelles fonctionnalitées,
        58  
        59  const STORAGE_KEY = 'mosta-setup-studio'
        60  
-       61 +const EXAMPLE_SETUP: SetupJson = {                                                                                                   
-       62 +  $schema: 'https://mostajs.dev/schemas/setup.v1.json',                                                                              
-       63 +  app: { name: 'SecuAccessPro', port: 4567, dbNamePrefix: 'secuaccessdb' },                                                          
-       64 +  env: { MOSTAJS_MODULES: 'orm,auth,audit,rbac,settings,setup' },                                                                    
-       65 +  rbac: {                                                                                                                            
-       66 +    categories: [                                                                                                                    
+       61 +const EXAMPLE_SETUP: SetupJson = {                                         
+       62 +  $schema: 'https://mostajs.dev/schemas/setup.v1.json',                    
+       63 +  app: { name: 'SecuAccessPro', port: 4567, dbNamePrefix: 'secuaccessdb' },
+       64 +  env: { MOSTAJS_MODULES: 'orm,auth,audit,rbac,settings,setup' },          
+       65 +  rbac: {        
+       66 +    categories: [
        67 +      { name: 'admin', label: 'Administration', description: 'Gestion du panneau d\'administration', icon: 'Settings', order: 0, syst
-          +em: true },                                                                                                                          
+          +em: true },      
        68 +      { name: 'client', label: 'Clients', description: 'Gestion des clients', icon: 'Users', order: 1, system: true },               
        69 +      { name: 'activity', label: 'Activites', description: 'Gestion des activites', icon: 'Activity', order: 2, system: true },      
        70 +      { name: 'ticket', label: 'Tickets', description: 'Gestion des tickets', icon: 'Ticket', order: 3, system: true },              
        71 +      { name: 'scan', label: 'Scan', description: 'Validation des entrees', icon: 'ScanLine', order: 4, system: true },              
        72 +      { name: 'dashboard', label: 'Tableau de bord', description: 'Statistiques', icon: 'LayoutDashboard', order: 5, system: true }, 
-       73 +    ],                                                                                                                               
-       74 +    permissions: [                                                                                                                   
+       73 +    ],           
+       74 +    permissions: [                                                         
        75 +      { code: 'admin:access', name: 'admin:access', description: 'Acceder au panneau admin', category: 'admin' },                    
        76 +      { code: 'admin:settings', name: 'admin:settings', description: 'Gerer les parametres', category: 'admin' },                    
        77 +      { code: 'client:view', name: 'client:view', description: 'Voir les clients', category: 'client' },                             
@@ -1658,39 +1658,39 @@ nouvelles fonctionnalitées,
        84 +      { code: 'ticket:view', name: 'ticket:view', description: 'Voir les tickets', category: 'ticket' },                             
        85 +      { code: 'scan:validate', name: 'scan:validate', description: 'Valider un scan', category: 'scan' },                            
        86 +      { code: 'dashboard:view', name: 'dashboard:view', description: 'Voir le tableau de bord', category: 'dashboard' },             
-       87 +    ],                                                                                                                               
-       88 +    roles: [                                                                                                                         
+       87 +    ],           
+       88 +    roles: [     
        89 +      { name: 'admin', description: 'Administrateur complet', system: true, permissions: ['*'] },                                    
        90 +      { name: 'agent_accueil', description: 'Agent d\'accueil', system: true, permissions: ['client:view', 'client:create', 'client:u
           +pdate', 'activity:view', 'ticket:create', 'ticket:view', 'scan:validate', 'dashboard:view'] },                                       
        91 +      { name: 'superviseur', description: 'Superviseur lecture seule', system: true, permissions: ['client:view', 'activity:view', 't
-          +icket:view', 'dashboard:view'] },                                                                                                    
-       92 +    ],                                                                                                                               
-       93 +  },                                                                                                                                 
-       94 +  seeds: [                                                                                                                           
-       95 +    {                                                                                                                                
+          +icket:view', 'dashboard:view'] },                                          
+       92 +    ],           
+       93 +  },             
+       94 +  seeds: [       
+       95 +    {            
        96 +      key: 'activities', label: 'Activites', description: '4 activites de demonstration', icon: 'Activity',                          
        97 +      default: true, collection: 'activity', match: 'slug', hashField: '', roleField: '',                                            
-       98 +      defaults: { currency: 'DA', status: 'active' },                                                                                
-       99 +      data: [                                                                                                                        
+       98 +      defaults: { currency: 'DA', status: 'active' },                      
+       99 +      data: [    
       100 +        { name: 'Piscine', slug: 'piscine', color: '#0EA5E9', capacity: 100, price: 800 },                                           
       101 +        { name: 'Tennis', slug: 'tennis', color: '#22C55E', capacity: 16, price: 1000 },                                             
       102 +        { name: 'Football', slug: 'football', color: '#16A34A', capacity: 30, price: 500 },                                          
       103 +        { name: 'Restaurant', slug: 'restaurant', color: '#D97706', capacity: 80, price: 0 },                                        
-      104 +      ],                                                                                                                             
-      105 +    },                                                                                                                               
-      106 +    {                                                                                                                                
+      104 +      ],         
+      105 +    },           
+      106 +    {            
       107 +      key: 'demoUsers', label: 'Utilisateurs demo', description: '2 agents de test', icon: 'Users',                                  
       108 +      default: false, collection: 'user', match: 'email', hashField: 'password', roleField: 'role',                                  
-      109 +      defaults: { status: 'active' },                                                                                                
-      110 +      data: [                                                                                                                        
+      109 +      defaults: { status: 'active' },                                      
+      110 +      data: [    
       111 +        { email: 'accueil@app.dz', password: 'Agent@123456', firstName: 'Karim', lastName: 'Bensalem', role: 'agent_accueil' },      
       112 +        { email: 'superviseur@app.dz', password: 'Super@123456', firstName: 'Nadia', lastName: 'Hamidi', role: 'superviseur' },      
-      113 +      ],                                                                                                                             
-      114 +    },                                                                                                                               
-      115 +  ],                                                                                                                                 
-      116 +}                                                                                                                                    
-      117 +                                                                                                                                     
+      113 +      ],         
+      114 +    },           
+      115 +  ],             
+      116 +}                
+      117 +                 
       118  // ── Main Component ───────────────────────────────────────
       119  
       120  export default function SetupStudio() {
@@ -1702,11 +1702,11 @@ nouvelles fonctionnalitées,
       230      input.click()
       231    }, [])
       232  
-      233 +  const loadExample = useCallback(() => {                                                                                            
+      233 +  const loadExample = useCallback(() => {                                  
       234 +    if (setup.app.name && !confirm('Remplacer par l\'exemple SecuAccessPro ?')) return                                               
-      235 +    setSetup(EXAMPLE_SETUP)                                                                                                          
-      236 +  }, [setup.app.name])                                                                                                               
-      237 +                                                                                                                                     
+      235 +    setSetup(EXAMPLE_SETUP)                                                
+      236 +  }, [setup.app.name])                                                     
+      237 +                 
       238    const resetAll = useCallback(() => {
       239      if (confirm('Reinitialiser tout ?')) {
       240        setSetup(EMPTY_SETUP)
@@ -1717,9 +1717,9 @@ nouvelles fonctionnalitées,
       273          </div>
       274          <div className="flex items-center gap-2">
       275 +          <button onClick={loadExample} className="flex items-center gap-1 px-3 py-1.5 text-sm bg-sky-50 border border-sky-200 text-s
-          +ky-700 rounded-lg hover:bg-sky-100">                                                                                                 
-      276 +            <Database className="h-4 w-4" /> Exemple                                                                                 
-      277 +          </button>                                                                                                                  
+          +ky-700 rounded-lg hover:bg-sky-100">                                       
+      276 +            <Database className="h-4 w-4" /> Exemple                       
+      277 +          </button>                                                        
       278            <button onClick={importJson} className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">
       279              <Upload className="h-4 w-4" /> Importer
       280            </button>
@@ -1731,204 +1731,204 @@ nouvelles fonctionnalitées,
        853  
        854  ---
        855  
-       856 -## 9. FAQ / Troubleshooting                                                                                                         
-       856 +## 9. Mode declaratif : setup.json                                                                                                  
+       856 -## 9. FAQ / Troubleshooting                                               
+       856 +## 9. Mode declaratif : setup.json                                        
        857  
        858 +> **Nouveau** — Depuis v1.5, le setup peut etre entierement configure via un fichier JSON declaratif.                               
-       859 +                                                                                                                                    
-       860 +### Principe                                                                                                                        
-       861 +                                                                                                                                    
+       859 +                
+       860 +### Principe    
+       861 +                
        862 +Au lieu d'ecrire du TypeScript pour definir les categories, permissions, roles et seeds,                                            
        863 +vous declarez tout dans un fichier `setup.json` a la racine du projet. Le module le lit                                             
        864 +et genere automatiquement les callbacks `seedRBAC`, `createAdmin` et `optionalSeeds`.                                               
-       865 +                                                                                                                                    
-       866 +### Creer un setup.json                                                                                                             
-       867 +                                                                                                                                    
-       868 +**3 methodes :**                                                                                                                    
-       869 +                                                                                                                                    
-       870 +| Methode | Commande | Pour qui |                                                                                                   
-       871 +|---------|----------|----------|                                                                                                   
+       865 +                
+       866 +### Creer un setup.json                                                   
+       867 +                
+       868 +**3 methodes :**
+       869 +                
+       870 +| Methode | Commande | Pour qui |                                         
+       871 +|---------|----------|----------|                                         
        872 +| **Studio visuel** | Ouvrir [MostaSetup Studio](https://github.com/apolocine/mosta-setup-studio) | Non-developpeurs, design RBAC | 
-       873 +| **CLI interactif** | `npx mosta-setup` | Developpeurs en terminal |                                                               
+       873 +| **CLI interactif** | `npx mosta-setup` | Developpeurs en terminal |     
        874 +| **CLI rapide** | `npx mosta-setup --quick --name MonApp --port 3000` | CI/CD, scripts |                                           
-       875 +                                                                                                                                    
-       876 +### Structure du fichier                                                                                                            
-       877 +                                                                                                                                    
-       878 +```json                                                                                                                             
-       879 +{                                                                                                                                   
-       880 +  "$schema": "https://mostajs.dev/schemas/setup.v1.json",                                                                           
-       881 +  "app": {                                                                                                                          
-       882 +    "name": "MonApp",                                                                                                               
-       883 +    "port": 3000,                                                                                                                   
-       884 +    "dbNamePrefix": "monappdb"                                                                                                      
-       885 +  },                                                                                                                                
-       886 +  "env": {                                                                                                                          
-       887 +    "MOSTAJS_MODULES": "orm,auth,audit,rbac,settings,setup"                                                                         
-       888 +  },                                                                                                                                
-       889 +  "rbac": {                                                                                                                         
-       890 +    "categories": [                                                                                                                 
+       875 +                
+       876 +### Structure du fichier                                                  
+       877 +                
+       878 +```json         
+       879 +{               
+       880 +  "$schema": "https://mostajs.dev/schemas/setup.v1.json",                 
+       881 +  "app": {      
+       882 +    "name": "MonApp",                                                     
+       883 +    "port": 3000,                                                         
+       884 +    "dbNamePrefix": "monappdb"                                            
+       885 +  },            
+       886 +  "env": {      
+       887 +    "MOSTAJS_MODULES": "orm,auth,audit,rbac,settings,setup"               
+       888 +  },            
+       889 +  "rbac": {     
+       890 +    "categories": [                                                       
        891 +      { "name": "admin", "label": "Administration", "icon": "Settings", "order": 0 }                                                
-       892 +    ],                                                                                                                              
-       893 +    "permissions": [                                                                                                                
+       892 +    ],          
+       893 +    "permissions": [                                                      
        894 +      { "code": "admin:access", "description": "Acceder au panneau", "category": "admin" }                                          
-       895 +    ],                                                                                                                              
-       896 +    "roles": [                                                                                                                      
+       895 +    ],          
+       896 +    "roles": [  
        897 +      { "name": "admin", "description": "Administrateur", "permissions": ["*"] }                                                    
-       898 +    ]                                                                                                                               
-       899 +  },                                                                                                                                
-       900 +  "seeds": [                                                                                                                        
-       901 +    {                                                                                                                               
-       902 +      "key": "products",                                                                                                            
-       903 +      "label": "Produits demo",                                                                                                     
-       904 +      "collection": "product",                                                                                                      
-       905 +      "match": "slug",                                                                                                              
-       906 +      "default": true,                                                                                                              
-       907 +      "data": [                                                                                                                     
-       908 +        { "name": "Produit A", "slug": "produit-a", "price": 1000 }                                                                 
-       909 +      ]                                                                                                                             
-       910 +    }                                                                                                                               
-       911 +  ]                                                                                                                                 
-       912 +}                                                                                                                                   
-       913 +```                                                                                                                                 
-       914 +                                                                                                                                    
+       898 +    ]           
+       899 +  },            
+       900 +  "seeds": [    
+       901 +    {           
+       902 +      "key": "products",                                                  
+       903 +      "label": "Produits demo",                                           
+       904 +      "collection": "product",                                            
+       905 +      "match": "slug",                                                    
+       906 +      "default": true,                                                    
+       907 +      "data": [ 
+       908 +        { "name": "Produit A", "slug": "produit-a", "price": 1000 }       
+       909 +      ]         
+       910 +    }           
+       911 +  ]             
+       912 +}               
+       913 +```             
+       914 +                
        915 +Le champ `$schema` active l'**autocompletion dans VS Code** (types, descriptions, exemples).                                        
-       916 +                                                                                                                                    
-       917 +### Utiliser loadSetupJson()                                                                                                        
-       918 +                                                                                                                                    
-       919 +```typescript                                                                                                                       
-       920 +// src/lib/setup-config.ts                                                                                                          
-       921 +import { loadSetupJson } from '@mostajs/setup'                                                                                      
-       922 +import type { MostaSetupConfig } from '@mostajs/setup'                                                                              
-       923 +                                                                                                                                    
-       924 +// repoFactory : adapte a votre couche d'acces aux donnees                                                                          
-       925 +async function repoFactory(collection: string) {                                                                                    
-       926 +  const service = await import('@/dal/service')                                                                                     
-       927 +  const factories: Record<string, () => Promise<unknown>> = {                                                                       
-       928 +    permissionCategory: service.permissionCategoryRepo,                                                                             
-       929 +    permission: service.permissionRepo,                                                                                             
-       930 +    role: service.roleRepo,                                                                                                         
-       931 +    user: service.userRepo,                                                                                                         
-       932 +    activity: service.activityRepo,                                                                                                 
-       933 +  }                                                                                                                                 
-       934 +  return factories[collection]() as Promise<any>                                                                                    
-       935 +}                                                                                                                                   
-       936 +                                                                                                                                    
-       937 +export async function getSetupConfig(): Promise<MostaSetupConfig> {                                                                 
-       938 +  return loadSetupJson('./setup.json', repoFactory)                                                                                 
-       939 +}                                                                                                                                   
-       940 +```                                                                                                                                 
-       941 +                                                                                                                                    
-       942 +```typescript                                                                                                                       
-       943 +// src/app/api/setup/install/route.ts                                                                                               
-       944 +import { runInstall } from '@mostajs/setup'                                                                                         
-       945 +import type { InstallConfig } from '@mostajs/setup'                                                                                 
-       946 +import { appNeedsSetup, getSetupConfig } from '@/lib/setup-config'                                                                  
-       947 +                                                                                                                                    
-       948 +export async function POST(req: Request) {                                                                                          
-       949 +  if (!(await appNeedsSetup())) {                                                                                                   
-       950 +    return Response.json({ error: 'Already installed' }, { status: 400 })                                                           
-       951 +  }                                                                                                                                 
-       952 +  const body: InstallConfig = await req.json()                                                                                      
-       953 +  const config = await getSetupConfig()                                                                                             
-       954 +  return Response.json(await runInstall(body, config))                                                                              
-       955 +}                                                                                                                                   
-       956 +```                                                                                                                                 
-       957 +                                                                                                                                    
-       958 +### Fonctionnalites des seeds JSON                                                                                                  
-       959 +                                                                                                                                    
-       960 +| Champ | Type | Description |                                                                                                      
-       961 +|-------|------|-------------|                                                                                                      
-       962 +| `key` | `string` | Identifiant unique du seed |                                                                                   
-       963 +| `label` | `string` | Label affiche dans le wizard (checkbox) |                                                                    
+       916 +                
+       917 +### Utiliser loadSetupJson()                                              
+       918 +                
+       919 +```typescript   
+       920 +// src/lib/setup-config.ts                                                
+       921 +import { loadSetupJson } from '@mostajs/setup'                            
+       922 +import type { MostaSetupConfig } from '@mostajs/setup'                    
+       923 +                
+       924 +// repoFactory : adapte a votre couche d'acces aux donnees                
+       925 +async function repoFactory(collection: string) {                          
+       926 +  const service = await import('@/dal/service')                           
+       927 +  const factories: Record<string, () => Promise<unknown>> = {             
+       928 +    permissionCategory: service.permissionCategoryRepo,                   
+       929 +    permission: service.permissionRepo,                                   
+       930 +    role: service.roleRepo,                                               
+       931 +    user: service.userRepo,                                               
+       932 +    activity: service.activityRepo,                                       
+       933 +  }             
+       934 +  return factories[collection]() as Promise<any>                          
+       935 +}               
+       936 +                
+       937 +export async function getSetupConfig(): Promise<MostaSetupConfig> {       
+       938 +  return loadSetupJson('./setup.json', repoFactory)                       
+       939 +}               
+       940 +```             
+       941 +                
+       942 +```typescript   
+       943 +// src/app/api/setup/install/route.ts                                     
+       944 +import { runInstall } from '@mostajs/setup'                               
+       945 +import type { InstallConfig } from '@mostajs/setup'                       
+       946 +import { appNeedsSetup, getSetupConfig } from '@/lib/setup-config'        
+       947 +                
+       948 +export async function POST(req: Request) {                                
+       949 +  if (!(await appNeedsSetup())) {                                         
+       950 +    return Response.json({ error: 'Already installed' }, { status: 400 }) 
+       951 +  }             
+       952 +  const body: InstallConfig = await req.json()                            
+       953 +  const config = await getSetupConfig()                                   
+       954 +  return Response.json(await runInstall(body, config))                    
+       955 +}               
+       956 +```             
+       957 +                
+       958 +### Fonctionnalites des seeds JSON                                        
+       959 +                
+       960 +| Champ | Type | Description |                                            
+       961 +|-------|------|-------------|                                            
+       962 +| `key` | `string` | Identifiant unique du seed |                         
+       963 +| `label` | `string` | Label affiche dans le wizard (checkbox) |          
        964 +| `collection` | `string` | Collection/table cible (doit matcher un schema enregistre) |                                            
        965 +| `match` | `string` | Champ pour upsert idempotent (ex: `slug`, `email`) |                                                         
        966 +| `hashField` | `string` | Champ a hasher avec bcrypt avant insertion (ex: `password`) |                                            
        967 +| `roleField` | `string` | Champ contenant un nom de role — resolu en ID a l'execution |                                            
        968 +| `defaults` | `object` | Valeurs par defaut fusionnees dans chaque ligne |                                                         
        969 +| `default` | `boolean` | Si `true`, la checkbox est cochee par defaut dans le wizard |                                             
-       970 +| `data` | `array` | Tableau d'objets a seeder |                                                                                    
-       971 +                                                                                                                                    
-       972 +**Exemple : seed utilisateurs avec hash + resolution de role :**                                                                    
-       973 +```json                                                                                                                             
-       974 +{                                                                                                                                   
-       975 +  "key": "demoUsers",                                                                                                               
-       976 +  "collection": "user",                                                                                                             
-       977 +  "match": "email",                                                                                                                 
-       978 +  "hashField": "password",                                                                                                          
-       979 +  "roleField": "role",                                                                                                              
-       980 +  "defaults": { "status": "active" },                                                                                               
-       981 +  "data": [                                                                                                                         
+       970 +| `data` | `array` | Tableau d'objets a seeder |                          
+       971 +                
+       972 +**Exemple : seed utilisateurs avec hash + resolution de role :**          
+       973 +```json         
+       974 +{               
+       975 +  "key": "demoUsers",                                                     
+       976 +  "collection": "user",                                                   
+       977 +  "match": "email",                                                       
+       978 +  "hashField": "password",                                                
+       979 +  "roleField": "role",                                                    
+       980 +  "defaults": { "status": "active" },                                     
+       981 +  "data": [     
        982 +    { "email": "agent@app.dz", "password": "Agent@123", "firstName": "Karim", "role": "agent_accueil" }                             
-       983 +  ]                                                                                                                                 
-       984 +}                                                                                                                                   
-       985 +```                                                                                                                                 
-       986 +                                                                                                                                    
-       987 +A l'execution :                                                                                                                     
-       988 +1. `password` est hashe avec bcrypt (12 rounds)                                                                                     
-       989 +2. `role: "agent_accueil"` est resolu en `roles: ["<id-du-role>"]`                                                                  
-       990 +3. `defaults.status` est fusionne → `status: "active"`                                                                              
-       991 +4. Si `match: "email"` et l'email existe deja → upsert (pas de doublon)                                                             
-       992 +                                                                                                                                    
-       993 +### setup.json manquant : upload automatique                                                                                        
-       994 +                                                                                                                                    
+       983 +  ]             
+       984 +}               
+       985 +```             
+       986 +                
+       987 +A l'execution : 
+       988 +1. `password` est hashe avec bcrypt (12 rounds)                           
+       989 +2. `role: "agent_accueil"` est resolu en `roles: ["<id-du-role>"]`        
+       990 +3. `defaults.status` est fusionne → `status: "active"`                    
+       991 +4. Si `match: "email"` et l'email existe deja → upsert (pas de doublon)   
+       992 +                
+       993 +### setup.json manquant : upload automatique                              
+       994 +                
        995 +Si le projet accede a `/setup` et que `setup.json` n'existe pas, la page affiche                                                    
        996 +automatiquement un formulaire d'upload (drag & drop ou selection de fichier).                                                       
-       997 +                                                                                                                                    
-       998 +Pour activer cette fonctionnalite, ajoutez la route API :                                                                           
-       999 +                                                                                                                                    
-      1000 +```typescript                                                                                                                       
-      1001 +// src/app/api/setup/setup-json/route.ts                                                                                            
-      1002 +import { createSetupJsonHandler } from '@mostajs/setup'                                                                             
-      1003 +import { appNeedsSetup } from '@/lib/setup-config'                                                                                  
-      1004 +                                                                                                                                    
-      1005 +export const { GET, POST } = createSetupJsonHandler(appNeedsSetup)                                                                  
-      1006 +```                                                                                                                                 
-      1007 +                                                                                                                                    
-      1008 +- **GET** `/api/setup/setup-json` → `{ exists: boolean, config?: {...} }`                                                           
-      1009 +- **POST** `/api/setup/setup-json` → recoit le JSON, ecrit `./setup.json`                                                           
-      1010 +                                                                                                                                    
-      1011 +### Mixer JSON + code TypeScript                                                                                                    
-      1012 +                                                                                                                                    
+       997 +                
+       998 +Pour activer cette fonctionnalite, ajoutez la route API :                 
+       999 +                
+      1000 +```typescript   
+      1001 +// src/app/api/setup/setup-json/route.ts                                  
+      1002 +import { createSetupJsonHandler } from '@mostajs/setup'                   
+      1003 +import { appNeedsSetup } from '@/lib/setup-config'                        
+      1004 +                
+      1005 +export const { GET, POST } = createSetupJsonHandler(appNeedsSetup)        
+      1006 +```             
+      1007 +                
+      1008 +- **GET** `/api/setup/setup-json` → `{ exists: boolean, config?: {...} }` 
+      1009 +- **POST** `/api/setup/setup-json` → recoit le JSON, ecrit `./setup.json` 
+      1010 +                
+      1011 +### Mixer JSON + code TypeScript                                          
+      1012 +                
       1013 +Les seeds simples (insert de donnees) vont dans `setup.json`. Les seeds complexes                                                   
-      1014 +(relations, logique conditionnelle) restent en TypeScript :                                                                         
-      1015 +                                                                                                                                    
-      1016 +```typescript                                                                                                                       
-      1017 +const config = await loadSetupJson('./setup.json', repoFactory)                                                                     
-      1018 +// Ajouter un seed code-only                                                                                                        
-      1019 +config.optionalSeeds = [                                                                                                            
-      1020 +  ...(config.optionalSeeds ?? []),                                                                                                  
+      1014 +(relations, logique conditionnelle) restent en TypeScript :               
+      1015 +                
+      1016 +```typescript   
+      1017 +const config = await loadSetupJson('./setup.json', repoFactory)           
+      1018 +// Ajouter un seed code-only                                              
+      1019 +config.optionalSeeds = [                                                  
+      1020 +  ...(config.optionalSeeds ?? []),                                        
       1021 +  { key: 'demoData', label: 'Donnees complexes', run: async () => { /* ... */ } },                                                  
-      1022 +]                                                                                                                                   
-      1023 +```                                                                                                                                 
-      1024 +                                                                                                                                    
-      1025 +### Validation                                                                                                                      
-      1026 +                                                                                                                                    
-      1027 +`loadSetupJson()` valide automatiquement :                                                                                          
-      1028 +- `app.name` est requis                                                                                                             
-      1029 +- Chaque permission reference une categorie existante                                                                               
-      1030 +- Chaque role reference des permissions existantes (sauf `*`)                                                                       
-      1031 +- Erreur descriptive en cas de reference croisee invalide                                                                           
-      1032 +                                                                                                                                    
-      1033 +### CLI : npx mosta-setup                                                                                                           
-      1034 +                                                                                                                                    
-      1035 +```bash                                                                                                                             
-      1036 +# Mode interactif (terminal)                                                                                                        
-      1037 +npx mosta-setup                                                                                                                     
-      1038 +                                                                                                                                    
-      1039 +# Mode rapide (CI, scripts, Dockerfile)                                                                                             
-      1040 +npx mosta-setup --quick --name MonApp --port 4567 --db monappdb                                                                     
-      1041 +                                                                                                                                    
-      1042 +# Avec modules                                                                                                                      
+      1022 +]               
+      1023 +```             
+      1024 +                
+      1025 +### Validation  
+      1026 +                
+      1027 +`loadSetupJson()` valide automatiquement :                                
+      1028 +- `app.name` est requis                                                   
+      1029 +- Chaque permission reference une categorie existante                     
+      1030 +- Chaque role reference des permissions existantes (sauf `*`)             
+      1031 +- Erreur descriptive en cas de reference croisee invalide                 
+      1032 +                
+      1033 +### CLI : npx mosta-setup                                                 
+      1034 +                
+      1035 +```bash         
+      1036 +# Mode interactif (terminal)                                              
+      1037 +npx mosta-setup 
+      1038 +                
+      1039 +# Mode rapide (CI, scripts, Dockerfile)                                   
+      1040 +npx mosta-setup --quick --name MonApp --port 4567 --db monappdb           
+      1041 +                
+      1042 +# Avec modules  
       1043 +npx mosta-setup --quick --name MonApp --modules "orm,auth,audit,rbac,settings,setup"                                                
-      1044 +                                                                                                                                    
-      1045 +# Sortie stdout (pour pipe)                                                                                                         
-      1046 +npx mosta-setup --quick --name MonApp --stdout | jq .                                                                               
-      1047 +```                                                                                                                                 
-      1048 +                                                                                                                                    
-      1049 +---                                                                                                                                 
-      1050 +                                                                                                                                    
-      1051 +## 10. FAQ / Troubleshooting                                                                                                        
-      1052 +                                                                                                                                    
+      1044 +                
+      1045 +# Sortie stdout (pour pipe)                                               
+      1046 +npx mosta-setup --quick --name MonApp --stdout | jq .                     
+      1047 +```             
+      1048 +                
+      1049 +---             
+      1050 +                
+      1051 +## 10. FAQ / Troubleshooting                                              
+      1052 +                
       1053  ### L'installation tourne en boucle (GET /setup se repete)
       1054  
       1055  **Cause** : `npm install` modifie `package.json` / `node_modules`, ce qui declenche un hot-reload Next.js et reinitialise le state R
@@ -1941,9 +1941,9 @@ nouvelles fonctionnalitées,
       25  6. [Systeme de modules](#6-systeme-de-modules)
       26  7. [Exemples avances](#7-exemples-avances)
       27  8. [Reconfiguration (post-installation)](#8-reconfiguration-post-installation)
-      28 -9. [FAQ / Troubleshooting](#9-faq--troubleshooting)                                                                                   
-      28 +9. [Mode declaratif : setup.json](#9-mode-declaratif--setupjson)                                                                      
-      29 +10. [FAQ / Troubleshooting](#10-faq--troubleshooting)                                                                                 
+      28 -9. [FAQ / Troubleshooting](#9-faq--troubleshooting)                         
+      28 +9. [Mode declaratif : setup.json](#9-mode-declaratif--setupjson)            
+      29 +10. [FAQ / Troubleshooting](#10-faq--troubleshooting)                       
       30  
       31  ---
       32  
@@ -1955,13 +1955,13 @@ nouvelles fonctionnalitées,
       498  | `createDetectModulesHandler()` | `/api/setup/detect-modules` | GET | Liste modules (statiques + npm) + installes |
       499  | `createInstallModulesHandler(needsSetup)` | `/api/setup/install-modules` | POST | Installe les modules npm selectionnes |
       500  
-      501 +### setup.json (declaratif)                                                                                                          
-      502 +                                                                                                                                     
-      503 +| Export | Signature | Description |                                                                                                 
-      504 +|--------|-----------|-------------|                                                                                                 
+      501 +### setup.json (declaratif)                                                
+      502 +                 
+      503 +| Export | Signature | Description |                                       
+      504 +|--------|-----------|-------------|                                       
       505 +| `loadSetupJson` | `(source?, repoFactory?) => Promise<MostaSetupConfig>` | Charge `setup.json` et retourne un config complet |     
       506 +| `createSetupJsonHandler` | `(needsSetup) => { GET, POST }` | Route API pour verifier/uploader `setup.json` |                       
-      507 +                                                                                                                                     
+      507 +                 
       508  ### Data exports
       509  
       510  | Export | Description |
@@ -2004,7 +2004,7 @@ nouvelles fonctionnalitées,
       95        const now = new Date().toISOString()
       96 -      const assignAccess = async (ci: number, pi: number, accessType: string, days: number | null) => {                               
       96 +      const assignAccess = async (ci: number, pi: number, accessType: 'temporal' | 'count' | 'mixed' | 'unlimited', days: number | nul
-         +l) => {                                                                                                                               
+         +l) => {           
       97          for (const act of plans[pi].activities) {
       98            await caRepo.create({
       99              client: createdClients[ci].id, plan: createdPlans[pi].id, activity: act.activity,
@@ -2031,7 +2031,7 @@ nouvelles fonctionnalitées,
      … +23 lines (ctrl+o to expand)
   ⎿  (timeout 30s)
 
-❯ publish sur npmjs.com                                                                                                                                
+❯ publish sur npmjs.com            
 
 ● Le flow complet fonctionne :
   1. needsSetup: true
@@ -2051,7 +2051,7 @@ nouvelles fonctionnalitées,
       (setup.json declaratif),…)
   ⎿  Interrupted · What should Claude do instead?
 
-❯ continue les test publie apres, continue                                                                                                             
+❯ continue les test publie apres, continue                                                   
 
 ● Bash(cd /home/hmd/dev/MostaGare-Install/mostajs/mosta-setup-studio && npx tsc --noEmit 2>&1 | head -5)
   ⎿  (No output)
@@ -2073,7 +2073,7 @@ nouvelles fonctionnalitées,
       10 BASE_URL="${SETUP_BASE_URL:-http://localhost:4567}"
      … +104 lines (ctrl+o to expand)
 
-❯ les script de test da sle repertoire des test                                                                                                        
+❯ les script de test da sle repertoire des test                                              
 
 ● Bash(chmod +x /home/hmd/dev/MostaGare-Install/SecuAccessPro/orm-scripts-tests/test-setup-json-upload.sh)
   ⎿  Done
@@ -2202,7 +2202,7 @@ nouvelles fonctionnalitées,
            , env }))} />}
       400            {tab === 'modules' && <ModulesTab modules={setup.modules} env={setup.env}
       401 -            onModulesChange={modules => setSetup(s => ({ ...s, modules, env: { ...s.env, MOSTAJS_MODULES: modules.map(m => m.key).joi
-          -n(',') } }))} />}                                                                                                                    
+          -n(',') } }))} />}
       401 +            onModulesChange={modules => setSetup(s => ({ ...s, modules }))} />}                                                      
       402            {tab === 'rbac' && <RbacTab rbac={setup.rbac} onChange={updateRbac} />}
       403            {tab === 'seeds' && <SeedsTab seeds={setup.seeds} categories={setup.rbac.categories} onChange={seeds => setSetup(s => ({ ..
@@ -2217,26 +2217,26 @@ nouvelles fonctionnalitées,
       1113                    </button>
       1114                    {dbTestResult && (
       1115 -                    <span style={{ fontSize: 13, color: dbTestResult.ok ? '#059669' : '#dc2626' }}>                                 
-      1116 -                      {dbTestResult.ok                                                                                              
+      1116 -                      {dbTestResult.ok                                    
       1117 -                        ? `✅ ${t('setup.database.success')}${dbTestResult.dbVersion ? ` (v${dbTestResult.dbVersion})` : ''}`       
       1118 -                        : `❌ ${t('setup.database.error')}: ${dbTestResult.error}`                                                  
-      1119 -                      }                                                                                                             
-      1120 -                    </span>                                                                                                         
-      1115 +                    <div style={{ fontSize: 13 }}>                                                                                  
+      1119 -                      }                                                   
+      1120 -                    </span>                                               
+      1115 +                    <div style={{ fontSize: 13 }}>                        
       1116 +                      <span style={{ color: dbTestResult.ok ? '#059669' : '#dc2626' }}>                                             
-      1117 +                        {dbTestResult.ok                                                                                            
+      1117 +                        {dbTestResult.ok                                  
       1118 +                          ? `✅ ${t('setup.database.success')}${dbTestResult.dbVersion ? ` (v${dbTestResult.dbVersion})` : ''}`     
       1119 +                          : `❌ ${t('setup.database.error')}: ${dbTestResult.error}`                                                
-      1120 +                        }                                                                                                           
-      1121 +                      </span>                                                                                                       
-      1122 +                      {dbTestResult.ok && (                                                                                         
+      1120 +                        }                                                 
+      1121 +                      </span>                                             
+      1122 +                      {dbTestResult.ok && (                               
       1123 +                        <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontFamily: 'monospace', backgroundColor: '#f3f4
-           +f6', padding: '4px 8px', borderRadius: 4 }}>                                                                                        
+           +f6', padding: '4px 8px', borderRadius: 4 }}>                              
       1124 +                          {dialect}{dialect !== 'sqlite' && dialect !== 'spanner' ? `://${dbConfig.user ? dbConfig.user + '@' : ''}$
            +{dbConfig.host}:${dbConfig.port}/${dbConfig.name}` : ` → ./data/${dbConfig.name}.db`}                                               
-      1125 +                        </div>                                                                                                      
-      1126 +                      )}                                                                                                            
-      1127 +                    </div>                                                                                                          
+      1125 +                        </div>                                            
+      1126 +                      )}                                                  
+      1127 +                    </div>                                                
       1128                    )}
       1129                  </div>
       1130                )}
@@ -2321,18 +2321,18 @@ nouvelles fonctionnalitées,
        5      "port": 4567,
        6      "dbNamePrefix": "secuaccessdb"
        7    },
-       8 +  "env": {                                                                                                                            
+       8 +  "env": {        
        9 +    "MOSTAJS_MODULES": "orm,auth,audit,rbac,settings,setup,face,init,ui,ticketing,media,scan,menu"                                    
-      10 +  },                                                                                                                                  
-      11 +  "modules": [                                                                                                                        
+      10 +  },              
+      11 +  "modules": [    
       12 +    { "key": "orm", "packageName": "@mostajs/orm", "label": "ORM", "icon": "🗄️ ", "required": true },                                  
       13 +    { "key": "auth", "packageName": "@mostajs/auth", "label": "Authentification", "icon": "🔐", "required": true, "dependsOn": ["orm"]
-         + },                                                                                                                                   
+         + },               
       14 +    { "key": "audit", "packageName": "@mostajs/audit", "label": "Audit & Logs", "icon": "📋", "dependsOn": ["orm"] },                 
       15 +    { "key": "rbac", "packageName": "@mostajs/rbac", "label": "Roles & Permissions", "icon": "🛡️ ", "dependsOn": ["auth", "audit"] },  
       16 +    { "key": "settings", "packageName": "@mostajs/settings", "label": "Parametres", "icon": "⚙️ ", "dependsOn": ["orm"] },             
       17 +    { "key": "setup", "packageName": "@mostajs/setup", "label": "Setup Wizard", "icon": "🧙", "required": true, "dependsOn": ["orm"] }
-         +,                                                                                                                                     
+         +,                 
       18 +    { "key": "face", "packageName": "@mostajs/face", "label": "Reconnaissance faciale", "icon": "👤" },                               
       19 +    { "key": "init", "packageName": "@mostajs/init", "label": "Init", "icon": "🚀", "dependsOn": ["orm"] },                           
       20 +    { "key": "ui", "packageName": "@mostajs/ui", "label": "UI", "icon": "🎨" },                                                       
@@ -2340,7 +2340,7 @@ nouvelles fonctionnalitées,
       22 +    { "key": "media", "packageName": "@mostajs/media", "label": "Media", "icon": "📷", "dependsOn": ["orm"] },                        
       23 +    { "key": "scan", "packageName": "@mostajs/scan", "label": "Scan", "icon": "📱", "dependsOn": ["orm"] },                           
       24 +    { "key": "menu", "packageName": "@mostajs/menu", "label": "Menu", "icon": "📑", "dependsOn": ["orm"] }                            
-      25 +  ],                                                                                                                                  
+      25 +  ],              
       26    "rbac": {
       27      "categories": [
       28        {
@@ -2402,7 +2402,7 @@ nouvelles fonctionnalitées,
 
 ✻ Baked for 8m 12s
 
-❯ y a t'ilun interet a utiliser env.MOSTAJS_MODULES?                                                                                                   
+❯ y a t'ilun interet a utiliser env.MOSTAJS_MODULES?                                         
 
 ● Non. Maintenant que setup.json a une section modules[] avec les détails complets (key, packageName, dependsOn...), env.MOSTAJS_MODULES est un
   doublon. C'est une chaîne plate qui perd toute l'info (pas de packageName, pas de dépendances).
@@ -2417,22 +2417,22 @@ nouvelles fonctionnalitées,
 
   Tu veux que je le retire du setup.json export et que seul writeEnvLocal le génère à l'installation ?
 
-❯ oui                                                                                                                                                  
+❯ oui                              
 
 ● Update(~/dev/MostaGare-Install/mostajs/mosta-setup-studio/src/components/SetupStudio.tsx)
   ⎿  Added 2 lines, removed 6 lines
       218      if (setup.app.port && setup.app.port !== 3000) app.port = setup.app.port
       219      if (setup.app.dbNamePrefix) app.dbNamePrefix = setup.app.dbNamePrefix
       220      out.app = app
-      221 -    // Env — merge MOSTAJS_MODULES from modules list                                                                                 
+      221 -    // Env — merge MOSTAJS_MODULES from modules list                       
       221 +    // Env — MOSTAJS_MODULES is derived at install time by writeEnvLocal(), not stored here                                          
       222      const envOut = { ...setup.env }
-      223 -    if (setup.modules.length > 0) {                                                                                                  
-      224 -      envOut.MOSTAJS_MODULES = setup.modules.map(m => m.key).join(',')                                                               
-      225 -    } else {                                                                                                                         
-      226 -      delete envOut.MOSTAJS_MODULES                                                                                                  
-      227 -    }                                                                                                                                
-      223 +    delete envOut.MOSTAJS_MODULES                                                                                                    
+      223 -    if (setup.modules.length > 0) {                                        
+      224 -      envOut.MOSTAJS_MODULES = setup.modules.map(m => m.key).join(',')     
+      225 -    } else {     
+      226 -      delete envOut.MOSTAJS_MODULES                                        
+      227 -    }            
+      223 +    delete envOut.MOSTAJS_MODULES                                          
       224      if (Object.keys(envOut).length > 0) out.env = envOut
       225      // Modules
       226      if (setup.modules.length > 0) {
@@ -2447,16 +2447,16 @@ nouvelles fonctionnalitées,
       137  }
       138  
       139  function buildConfig(json: SetupJson, repoFactory?: (collection: string) => Promise<GenericRepo>): MostaSetupConfig {
-      140 +  // Derive MOSTAJS_MODULES from modules[] section                                                                                   
-      141 +  const extraEnvVars: Record<string, string> = { ...(json.env ?? {}) }                                                               
-      142 +  if (json.modules?.length) {                                                                                                        
-      143 +    extraEnvVars.MOSTAJS_MODULES = json.modules.map(m => m.key).join(',')                                                            
-      144 +  }                                                                                                                                  
-      145 +                                                                                                                                     
+      140 +  // Derive MOSTAJS_MODULES from modules[] section                         
+      141 +  const extraEnvVars: Record<string, string> = { ...(json.env ?? {}) }     
+      142 +  if (json.modules?.length) {                                              
+      143 +    extraEnvVars.MOSTAJS_MODULES = json.modules.map(m => m.key).join(',')  
+      144 +  }              
+      145 +                 
       146    const config: MostaSetupConfig = {
       147      appName: json.app.name,
       148      defaultPort: json.app.port,
-      143 -    extraEnvVars: json.env ? { ...json.env } : undefined,                                                                            
+      143 -    extraEnvVars: json.env ? { ...json.env } : undefined,                  
       149 +    extraEnvVars: Object.keys(extraEnvVars).length > 0 ? extraEnvVars : undefined,                                                   
       150    }
       151  
@@ -2471,21 +2471,21 @@ nouvelles fonctionnalitées,
       67      dbNamePrefix?: string
       68    }
       69    env?: Record<string, string>
-      70 +  modules?: SetupJsonModule[]                                                                                                         
+      70 +  modules?: SetupJsonModule[]                                               
       71    rbac?: SetupJsonRbac
       72    seeds?: SetupJsonSeed[]
       73  }
       74  
-      75 +export interface SetupJsonModule {                                                                                                    
-      76 +  key: string                                                                                                                         
-      77 +  packageName: string                                                                                                                 
-      78 +  label?: string                                                                                                                      
-      79 +  description?: string                                                                                                                
-      80 +  icon?: string                                                                                                                       
-      81 +  required?: boolean                                                                                                                  
-      82 +  dependsOn?: string[]                                                                                                                
-      83 +}                                                                                                                                     
-      84 +                                                                                                                                      
+      75 +export interface SetupJsonModule {                                          
+      76 +  key: string     
+      77 +  packageName: string                                                       
+      78 +  label?: string  
+      79 +  description?: string                                                      
+      80 +  icon?: string   
+      81 +  required?: boolean                                                        
+      82 +  dependsOn?: string[]                                                      
+      83 +}                 
+      84 +                  
       85  // ── Loader ───────────────────────────────────────────────
       86  
       87  /**
@@ -2497,9 +2497,9 @@ nouvelles fonctionnalitées,
        5      "port": 4567,
        6      "dbNamePrefix": "secuaccessdb"
        7    },
-       8 -  "env": {                                                                                                                            
+       8 -  "env": {        
        9 -    "MOSTAJS_MODULES": "orm,auth,audit,rbac,settings,setup,face,init,ui,ticketing,media,scan,menu"                                    
-      10 -  },                                                                                                                                  
+      10 -  },              
        8    "modules": [
        9      { "key": "orm", "packageName": "@mostajs/orm", "label": "ORM", "icon": "🗄️ ", "required": true },
       10      { "key": "auth", "packageName": "@mostajs/auth", "label": "Authentification", "icon": "🔐", "required": true, "dependsOn": ["orm"]
@@ -2515,7 +2515,7 @@ nouvelles fonctionnalitées,
       143    get seedRBAC() { return undefined },
       144    get optionalSeeds() { return undefined },
       145 -  get extraEnvVars() { return { MOSTAJS_MODULES: 'orm,auth,audit,rbac,settings,setup,face,init,ui,ticketing,media,scan,menu' } },    
-      145 +  get extraEnvVars() { return undefined },                                                                                           
+      145 +  get extraEnvVars() { return undefined },                                 
       146  }
 
 ● Build, test, push.
@@ -2581,10 +2581,10 @@ nouvelles fonctionnalitées,
       31          exists: true,
       32          config: {
       33            appName: json.app?.name,
-      34 +          dbNamePrefix: json.app?.dbNamePrefix,                                                                                       
+      34 +          dbNamePrefix: json.app?.dbNamePrefix,                             
       35            hasRbac: !!(json.rbac?.roles?.length || json.rbac?.permissions?.length),
       36            seedCount: json.seeds?.length ?? 0,
-      37 +          modules: (json as Record<string, unknown>).modules ?? [],                                                                   
+      37 +          modules: (json as Record<string, unknown>).modules ?? [],         
       38          },
       39        })
       40      } catch (err: unknown) {
@@ -2596,8 +2596,8 @@ nouvelles fonctionnalitées,
        9  export default function SetupPage() {
       10    const router = useRouter()
       11    const [setupJsonStatus, setSetupJsonStatus] = useState<'loading' | 'found' | 'missing'>('loading')
-      12 +  const [setupModules, setSetupModules] = useState<string[]>([])                                                                      
-      13 +  const [dbPrefix, setDbPrefix] = useState('secuaccessdb')                                                                            
+      12 +  const [setupModules, setSetupModules] = useState<string[]>([])            
+      13 +  const [dbPrefix, setDbPrefix] = useState('secuaccessdb')                  
       14    const [uploading, setUploading] = useState(false)
       15    const [uploadError, setUploadError] = useState<string | null>(null)
       16    const [dragOver, setDragOver] = useState(false)
@@ -2605,16 +2605,16 @@ nouvelles fonctionnalitées,
       18    useEffect(() => {
       19      fetch('/api/setup/setup-json')
       20        .then(r => r.json())
-      19 -      .then(data => setSetupJsonStatus(data.exists ? 'found' : 'missing'))                                                            
-      21 +      .then(data => {                                                                                                                 
-      22 +        setSetupJsonStatus(data.exists ? 'found' : 'missing')                                                                         
-      23 +        if (data.config?.modules?.length) {                                                                                           
+      19 -      .then(data => setSetupJsonStatus(data.exists ? 'found' : 'missing'))  
+      21 +      .then(data => {                                                       
+      22 +        setSetupJsonStatus(data.exists ? 'found' : 'missing')               
+      23 +        if (data.config?.modules?.length) {                                 
       24 +          setSetupModules(data.config.modules.map((m: { key: string }) => m.key))                                                     
-      25 +        }                                                                                                                             
-      26 +        if (data.config?.dbNamePrefix) {                                                                                              
-      27 +          setDbPrefix(data.config.dbNamePrefix)                                                                                       
-      28 +        }                                                                                                                             
-      29 +      })                                                                                                                              
+      25 +        }         
+      26 +        if (data.config?.dbNamePrefix) {                                    
+      27 +          setDbPrefix(data.config.dbNamePrefix)                             
+      28 +        }         
+      29 +      })          
       30        .catch(() => setSetupJsonStatus('missing'))
       31    }, [])
       32  
@@ -2626,8 +2626,8 @@ nouvelles fonctionnalitées,
       170          <SetupWizard
       171            t={(key: string) => t(`setup.${key}`) || t(key) || key}
       172            onComplete={() => router.push('/login')}
-      173 -          dbNamePrefix="secuaccessdb"                                                                                                
-      173 +          dbNamePrefix={dbPrefix}                                                                                                    
+      173 -          dbNamePrefix="secuaccessdb"                                      
+      173 +          dbNamePrefix={dbPrefix}                                          
       174 +          declaredModules={setupModules.length > 0 ? setupModules : undefined}                                                       
       175            endpoints={{
       176              testDb: '/api/setup/test-db',
@@ -2648,7 +2648,7 @@ nouvelles fonctionnalitées,
       34            dbNamePrefix: json.app?.dbNamePrefix,
       35            hasRbac: !!(json.rbac?.roles?.length || json.rbac?.permissions?.length),
       36            seedCount: json.seeds?.length ?? 0,
-      37 -          modules: (json as Record<string, unknown>).modules ?? [],                                                                   
+      37 -          modules: (json as Record<string, unknown>).modules ?? [],         
       37 +          modules: (json as unknown as Record<string, unknown>).modules ?? [],                                                        
       38          },
       39        })
@@ -2697,12 +2697,12 @@ nouvelles fonctionnalitées,
        87    // Reset store
        88    for (const k of Object.keys(store)) delete store[k]
        89  
-       90 +  // Read expected counts from setup.json                                                                                            
-       91 +  const raw = JSON.parse(fs.readFileSync('./setup.json', 'utf-8'))                                                                   
-       92 +  const expectedCats = raw.rbac?.categories?.length ?? 0                                                                             
-       93 +  const expectedPerms = raw.rbac?.permissions?.length ?? 0                                                                           
+       90 +  // Read expected counts from setup.json                                  
+       91 +  const raw = JSON.parse(fs.readFileSync('./setup.json', 'utf-8'))         
+       92 +  const expectedCats = raw.rbac?.categories?.length ?? 0                   
+       93 +  const expectedPerms = raw.rbac?.permissions?.length ?? 0                 
        94 +  const expectedRoles = (raw.rbac?.roles ?? []).filter((r: { name: string }) => r.name).length                                       
-       95 +                                                                                                                                     
+       95 +                 
        96    const config = await loadSetupJson('./setup.json', mockRepoFactory)
        97    assert(typeof config.seedRBAC === 'function', 'seedRBAC should be a function')
        98  
@@ -2712,27 +2712,27 @@ nouvelles fonctionnalitées,
        96 -  assert(store.permission?.length === 29, `should have 29 permissions, got ${store.permission?.length}`)                             
        97 -  assert(store.role?.length === 4, `should have 4 roles, got ${store.role?.length}`)                                                 
       101 +  assert(store.permissionCategory?.length === expectedCats, `should have ${expectedCats} categories, got ${store.permissionCategory?.
-          +length}`)                                                                                                                            
+          +length}`)        
       102 +  assert(store.permission?.length === expectedPerms, `should have ${expectedPerms} permissions, got ${store.permission?.length}`)    
       103 +  assert(store.role?.length === expectedRoles, `should have ${expectedRoles} roles, got ${store.role?.length}`)                      
       104  
-       99 -  // Admin role should have all permission IDs                                                                                       
-      105 +  // Admin role should have all permission IDs (wildcard *)                                                                          
+       99 -  // Admin role should have all permission IDs                             
+      105 +  // Admin role should have all permission IDs (wildcard *)                
       106    const adminRole = store.role!.find(r => r.name === 'admin')
       107    assert(adminRole !== undefined, 'admin role should exist')
       108    assert(Array.isArray(adminRole!.permissions), 'admin permissions should be array')
       103 -  assert((adminRole!.permissions as string[]).length === 29, `admin should have 29 perms, got ${(adminRole!.permissions as string[]).
-          -length}`)                                                                                                                            
+          -length}`)        
       109 +  assert((adminRole!.permissions as string[]).length === expectedPerms, `admin should have ${expectedPerms} perms, got ${(adminRole!.
-          +permissions as string[]).length}`)                                                                                                   
+          +permissions as string[]).length}`)                                         
       110  
-      105 -  // Agent accueil should have specific permissions                                                                                  
-      106 -  const agentRole = store.role!.find(r => r.name === 'agent_accueil')                                                                
-      107 -  assert(agentRole !== undefined, 'agent_accueil role should exist')                                                                 
+      105 -  // Agent accueil should have specific permissions                        
+      106 -  const agentRole = store.role!.find(r => r.name === 'agent_accueil')      
+      107 -  assert(agentRole !== undefined, 'agent_accueil role should exist')       
       108 -  assert((agentRole!.permissions as string[]).length === 20, `agent_accueil should have 20 perms, got ${(agentRole!.permissions as st
-          -ring[]).length}`)                                                                                                                    
-      109 -                                                                                                                                     
-      110 -  ok('seedRBAC — categories, permissions, roles with correct counts')                                                                
+          -ring[]).length}`)
+      109 -                 
+      110 -  ok('seedRBAC — categories, permissions, roles with correct counts')      
       111 +  ok(`seedRBAC — ${expectedCats} categories, ${expectedPerms} permissions, ${expectedRoles} roles`)                                  
       112  }
       113  
@@ -2759,8 +2759,8 @@ nouvelles fonctionnalitées,
       195          const roleRepo = await getRepo('role')
       196          const allPermIds = Object.values(permissionMap)
       197  
-      198 -        for (const roleDef of json.rbac!.roles!) {                                                                                   
-      198 +        for (const roleDef of json.rbac!.roles!.filter(r => r.name)) {                                                               
+      198 -        for (const roleDef of json.rbac!.roles!) {                         
+      198 +        for (const roleDef of json.rbac!.roles!.filter(r => r.name)) {     
       199            const permissionIds = roleDef.permissions.includes('*')
       200              ? allPermIds
       201              : roleDef.permissions.map(code => permissionMap[code]).filter(Boolean)
@@ -2802,10 +2802,10 @@ nouvelles fonctionnalitées,
       132    // Reset store
       133    for (const k of Object.keys(store)) delete store[k]
       134  
-      135 +  // Read expected count from setup.json                                                                                             
-      136 +  const raw = JSON.parse(fs.readFileSync('./setup.json', 'utf-8'))                                                                   
-      137 +  const expectedCount = raw.seeds?.find((s: { key: string }) => s.key === 'activities')?.data?.length ?? 0                           
-      138 +                                                                                                                                     
+      135 +  // Read expected count from setup.json
+      136 +  const raw = JSON.parse(fs.readFileSync('./setup.json', 'utf-8'))         
+      137 +  const expectedCount = raw.seeds?.find((s: { key: string }) => s.key === 'activities')?.data?.length ?? 0
+      138 +                 
       139    const config = await loadSetupJson('./setup.json', mockRepoFactory)
       140    const actSeed = config.optionalSeeds!.find(s => s.key === 'activities')!
       141  
@@ -2820,8 +2820,8 @@ nouvelles fonctionnalitées,
       149    assert(piscine!.status === 'active', 'defaults should merge — status=active')
       150    assert(Array.isArray(piscine!.schedule), 'defaults should merge — schedule array')
       151  
-      148 -  ok('run activities seed — 12 records with defaults merged')                                                                        
-      152 +  ok(`run activities seed — ${expectedCount} records with defaults merged`)                                                          
+      148 -  ok('run activities seed — 12 records with defaults merged')              
+      152 +  ok(`run activities seed — ${expectedCount} records with defaults merged`)
       153  }
       154  
       155  async function testRunDemoUsersSeed() {
@@ -2837,7 +2837,7 @@ nouvelles fonctionnalitées,
       168  
       169 -  assert(store.user?.length === 3, `should seed 3 users, got ${store.user?.length}`)                                                 
       169 +  const expectedUsers = JSON.parse(fs.readFileSync('./setup.json', 'utf-8')).seeds?.find((s: { key: string }) => s.key === 'demoUsers
-          +')?.data?.length ?? 0                                                                                                                
+          +')?.data?.length ?? 0                                                      
       170 +  assert(store.user?.length === expectedUsers, `should seed ${expectedUsers} users, got ${store.user?.length}`)                      
       171  
       172    const karim = store.user!.find(u => u.email === 'accueil@secuaccess.dz')
@@ -2862,14 +2862,14 @@ nouvelles fonctionnalitées,
   ⎿  Added 3 lines, removed 1 line
       192    const config = await loadSetupJson('./setup.json', mockRepoFactory)
       193    const actSeed = config.optionalSeeds!.find(s => s.key === 'activities')!
-      194  
+      194
       195 +  const expectedCount = JSON.parse(fs.readFileSync('./setup.json', 'utf-8')).seeds?.find((s: { key: string }) => s.key === 'activitie
-          +s')?.data?.length ?? 0                                                                                                               
-      196 +                                                                                                                                     
+          +s')?.data?.length ?? 0                                                     
+      196 +
       197    await actSeed.run({})
-      196 -  assert(store.activity?.length === 12, 'first run: 12 activities')                                                                  
-      198 +  assert(store.activity?.length === expectedCount, `first run: ${expectedCount} activities`)                                         
-      199  
+      196 -  assert(store.activity?.length === 12, 'first run: 12 activities')
+      198 +  assert(store.activity?.length === expectedCount, `first run: ${expectedCount} activities`)
+      199
       200    // Run again — should upsert, not duplicate
       201    await actSeed.run({})
 
@@ -2904,8 +2904,8 @@ nouvelles fonctionnalitées,
 
 ✻ Churned for 4m 49s
 
-❯ le /setup n'affiche touour pas la lsite des modules lu a partir de '/home/hmd/dev/MostaGare-Install/SecuAccessPro/setup(2).json' verifie analyse ne  
-modifie rien                                                                                                                                           
+❯ le /setup n'affiche touour pas la lsite des modules lu a partir de '/home/hmd/dev/MostaGare-Install/SecuAccessPro/setup(2).json' verifie analyse ne
+modifie rien
 
 ● Read 1 file (ctrl+o to expand)
 
