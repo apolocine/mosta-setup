@@ -25,9 +25,22 @@ export interface DbConfig {
   password: string
 }
 
+export type SetupMode = 'orm' | 'net'
+
+export interface NetConfig {
+  url: string
+  transport: 'rest' | 'graphql' | 'jsonrpc' | 'ws'
+  apiKey?: string
+}
+
 export interface InstallConfig {
+  mode?: SetupMode
+  // Mode ORM (direct DB access)
   dialect: DialectType
   db: DbConfig
+  // Mode NET (remote @mostajs/net server)
+  net?: NetConfig
+  // Common
   admin: { email: string; password: string; firstName: string; lastName: string }
   seed?: SeedOptions
   modules?: string[]

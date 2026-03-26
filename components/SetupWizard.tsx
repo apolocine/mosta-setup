@@ -84,7 +84,9 @@ export interface SetupWizardProps {
 
 // ── Constants ────────────────────────────────────────────────
 
-const ALL_STEPS = ['welcome', 'modules', 'dialect', 'database', 'admin', 'summary'] as const
+const ORM_STEPS = ['welcome', 'modules', 'dialect', 'database', 'admin', 'summary'] as const
+const NET_STEPS = ['welcome', 'modules', 'net-config', 'admin', 'summary'] as const
+const ALL_STEPS = ['welcome', 'modules', 'dialect', 'database', 'net-config', 'admin', 'summary'] as const
 type Step = typeof ALL_STEPS[number]
 
 const DIALECT_DEFAULTS: Record<Dialect, DbConfig> = {
@@ -547,12 +549,6 @@ export default function SetupWizard({
 }: SetupWizardProps) {
   const t = tProp || ((k: string) => k)
 
-  // Modules step is shown unless explicitly disabled
-  const hasModulesStep = showModules !== false
-  const STEPS = hasModulesStep
-    ? ALL_STEPS
-    : ALL_STEPS.filter(s => s !== 'modules')
-
   const ep = {
     detectModules: endpoints.detectModules || '',
     testDb: endpoints.testDb || '/api/setup/test-db',
@@ -567,6 +563,12 @@ export default function SetupWizard({
   }
 
   // --- State ---
+  const [setupMode, setSetupMode] = useState<'orm' | 'net'>('orm')
+  const [netUrl, setNetUrl] = useState('http://localhost:4488')
+  const [netTransport, setNetTransport] = useState<'rest' | 'graphql' | 'jsonrpc' | 'ws'>('rest')
+  const [netApiKey, setNetApiKey] = useState('')
+  const [netTestResult, setNetTestResult] = useState<{ ok: boolean; entities?: string[]; transports?: string[]; error?: string } | null>(null)
+  const [netTesting, setNetTesting] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
   const [dialect, setDialect] = useState<Dialect>('mongodb')
   const [dbConfig, setDbConfig] = useState<DbConfig>({ ...DIALECT_DEFAULTS.mongodb, name: `${dbNamePrefix}_prod` })
@@ -600,6 +602,13 @@ export default function SetupWizard({
   const [creatingDb, setCreatingDb] = useState(false)
   const [createDbResult, setCreateDbResult] = useState<{ ok: boolean; detail?: string; error?: string } | null>(null)
 
+  // Steps depend on setup mode (ORM direct vs NET remote)
+  const hasModulesStep = showModules !== false
+  const baseSteps = setupMode === 'net' ? NET_STEPS : ORM_STEPS
+  const STEPS = hasModulesStep
+    ? baseSteps
+    : baseSteps.filter(s => s !== 'modules')
+
   const step: Step = STEPS[currentStep]
 
   // --- Persist / Restore ---
@@ -632,16 +641,30 @@ export default function SetupWizard({
     if (!hydrated) return
     fetch(ep.setupJson)
       .then(r => r.json())
-      .then((data: { exists: boolean; config?: { seeds?: { key: string; label: string; description: string; icon?: string; default: boolean }[] } }) => {
+      .then((data: { exists: boolean; config?: { seeds?: { key: string; label: string; description: string; icon?: string; default: boolean }[]; modules?: any[] } }) => {
         const seeds = data.config?.seeds ?? []
         setAvailableSeeds(seeds)
-        // Initialize seedOptions from defaults (only if not already restored from session)
+        // Initialize seedOptions from defaults
         setSeedOptions(prev => {
-          if (Object.keys(prev).length > 0) return prev
           const defaults: SeedOptions = {}
-          for (const s of seeds) defaults[s.key] = s.default
+          for (const s of seeds) defaults[s.key] = prev[s.key] ?? s.default
           return defaults
         })
+        // Load modules from setup.json if not provided via props
+        const mods = data.config?.modules ?? []
+        if (mods.length > 0 && availableModules.length === 0) {
+          setAvailableModules(mods.map((m: any) => ({
+            key: m.key, packageName: m.packageName || m.key,
+            label: m.label || m.key, description: m.description || '',
+            icon: m.icon || '', required: m.required || false,
+            dependsOn: m.dependsOn || [], installed: false,
+          })))
+          // Pre-select required modules
+          setSelectedModules(prev => {
+            if (prev.length > 0) return prev
+            return mods.filter((m: any) => m.required || m.default).map((m: any) => m.key)
+          })
+        }
       })
       .catch(() => {})
   }, [hydrated])
@@ -907,8 +930,10 @@ export default function SetupWizard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          mode: setupMode,
           dialect,
           db: dbConfig,
+          ...(setupMode === 'net' ? { net: { url: netUrl, transport: netTransport, apiKey: netApiKey || undefined } } : {}),
           admin: { email: adminConfig.email, password: adminConfig.password, firstName: adminConfig.firstName, lastName: adminConfig.lastName },
           seed: seedOptions,
           modules: selectedModules,
@@ -930,16 +955,19 @@ export default function SetupWizard({
   function canGoNext(): boolean {
     switch (step) {
       case 'welcome': return true
-      case 'modules': return selectedModules.length > 0
+      case 'modules': return availableModules.length === 0 || selectedModules.length > 0
       case 'dialect': return true
       case 'database':
         if (dialect === 'sqlite' || dialect === 'spanner') return dbConfig.name.trim() !== ''
         return dbTestResult?.ok === true
+      case 'net-config':
+        return netTestResult?.ok === true
       case 'admin':
         return adminConfig.firstName.trim() !== '' && adminConfig.lastName.trim() !== '' &&
           adminConfig.email.trim() !== '' && adminConfig.password.length >= 6 &&
           adminConfig.password === adminConfig.confirmPassword
       case 'summary': return false
+      default: return false
     }
   }
 
@@ -992,6 +1020,27 @@ export default function SetupWizard({
                 <p style={{ color: '#6b7280', marginBottom: 16 }}>{t('setup.welcome.description')}</p>
               </div>
 
+              {/* Mode selection: ORM direct vs NET remote */}
+              <div style={{ margin: '16px 0', padding: 16, backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 12 }}>Comment acceder aux donnees ?</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: setupMode === 'orm' ? '#dbeafe' : '#fff', border: '1px solid ' + (setupMode === 'orm' ? '#3b82f6' : '#e5e7eb'), borderRadius: 8, cursor: 'pointer' }}>
+                    <input type="radio" name="setupMode" checked={setupMode === 'orm'} onChange={() => setSetupMode('orm')} style={{ marginTop: 3 }} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>Acces direct (ORM)</div>
+                      <div style={{ fontSize: 12, color: '#6b7280' }}>L'application se connecte directement a la base de donnees (13 SGBD supportes)</div>
+                    </div>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: setupMode === 'net' ? '#dbeafe' : '#fff', border: '1px solid ' + (setupMode === 'net' ? '#3b82f6' : '#e5e7eb'), borderRadius: 8, cursor: 'pointer' }}>
+                    <input type="radio" name="setupMode" checked={setupMode === 'net'} onChange={() => setSetupMode('net')} style={{ marginTop: 3 }} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>Via @mostajs/net (reseau)</div>
+                      <div style={{ fontSize: 12, color: '#6b7280' }}>L'application communique avec un serveur @mostajs/net distant via REST, GraphQL, JSON-RPC ou WebSocket</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               {/* Preflight checks panel */}
               <div style={{ margin: '16px 0 24px', padding: 16, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -1031,8 +1080,11 @@ export default function SetupWizard({
 
               <div style={S.center}>
                 <button style={S.btn('lg')} onClick={goNext}>
-                  {t('setup.welcome.start')} →
+                  {setupMode === 'net' ? '🌐 Configurer via NET →' : '🗄️ Configurer la base de donnees →'}
                 </button>
+                <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 8 }}>
+                  Mode : <b>{setupMode === 'net' ? 'Serveur @mostajs/net' : 'Acces direct ORM'}</b> — {STEPS.length} etapes
+                </p>
               </div>
             </div>
           )}
@@ -1334,6 +1386,94 @@ export default function SetupWizard({
                           {dialect}://{dbConfig.user ? dbConfig.user + '@' : ''}{dbConfig.host}:{dbConfig.port}/{dbConfig.name}
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={S.navRow}>
+                <button style={S.btn('outline')} onClick={goBack}>← {t('setup.back')}</button>
+                <button style={S.btn('primary', !canGoNext())} onClick={goNext} disabled={!canGoNext()}>{t('setup.next')} →</button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Step: NET Config ─── */}
+          {step === 'net-config' && (
+            <div>
+              <div style={S.sectionHeader}>
+                <h2 style={S.sectionTitle}>Serveur @mostajs/net</h2>
+                <p style={S.sectionDesc}>Configurez la connexion au serveur @mostajs/net distant</p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }}>URL du serveur</label>
+                  <input style={S.input} value={netUrl} onChange={e => { setNetUrl(e.target.value); setNetTestResult(null) }} placeholder="http://localhost:4488" />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }}>Transport</label>
+                    <select style={S.input} value={netTransport} onChange={e => setNetTransport(e.target.value as any)}>
+                      <option value="rest">REST</option>
+                      <option value="graphql">GraphQL</option>
+                      <option value="jsonrpc">JSON-RPC</option>
+                      <option value="ws">WebSocket</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }}>API Key (optionnel)</label>
+                    <input style={S.input} value={netApiKey} onChange={e => setNetApiKey(e.target.value)} placeholder="msk_live_..." type="password" />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                style={{ ...S.btn('primary'), marginBottom: 16 }}
+                disabled={netTesting || !netUrl}
+                onClick={async () => {
+                  setNetTesting(true)
+                  setNetTestResult(null)
+                  try {
+                    const res = await fetch(ep.setupJson.replace('setup-json', 'net-test'), {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ url: netUrl }),
+                    })
+                    const data = await res.json()
+                    setNetTestResult(data)
+                  } catch (e: any) {
+                    setNetTestResult({ ok: false, error: e.message })
+                  }
+                  setNetTesting(false)
+                }}
+              >
+                {netTesting ? '⏳ Test en cours...' : '🔌 Tester la connexion'}
+              </button>
+
+              {netTestResult && (
+                <div style={{
+                  padding: 12, borderRadius: 8, marginBottom: 16,
+                  backgroundColor: netTestResult.ok ? '#f0fdf4' : '#fef2f2',
+                  border: `1px solid ${netTestResult.ok ? '#bbf7d0' : '#fecaca'}`,
+                }}>
+                  {netTestResult.ok ? (
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#166534', marginBottom: 4 }}>✅ Serveur connecte</div>
+                      {netTestResult.entities && (
+                        <div style={{ fontSize: 13, color: '#374151' }}>
+                          <strong>{netTestResult.entities.length}</strong> entites : {netTestResult.entities.join(', ')}
+                        </div>
+                      )}
+                      {netTestResult.transports && (
+                        <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
+                          Transports : {netTestResult.transports.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ color: '#991b1b' }}>
+                      ❌ {netTestResult.error || 'Connexion echouee'}
                     </div>
                   )}
                 </div>

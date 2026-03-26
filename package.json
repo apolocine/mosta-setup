@@ -1,6 +1,6 @@
 {
   "name": "@mostajs/setup",
-  "version": "2.1.5",
+  "version": "2.1.11",
   "description": "Reusable setup wizard module — multi-dialect DB configuration, .env.local writer, seed runner",
   "author": "Dr Hamid MADANI <drmdh@msn.com>",
   "license": "MIT",
