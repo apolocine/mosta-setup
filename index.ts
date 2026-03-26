@@ -20,6 +20,10 @@ export type { SetupJson, SetupJsonRbac, SetupJsonSeed, SetupJsonCategory, SetupJ
 export { createSetupRoutes } from './api/routes.js'
 export type { SetupRoutesConfig } from './api/routes.js'
 
+// NET client (for setup via @mostajs/net)
+export { NetClient } from './lib/net-client.js'
+export type { NetClientConfig, NetHealthResponse } from './lib/net-client.js'
+
 // API route factories (individual — still available for granular use)
 export { createTestDbHandler } from './api/test-db.route.js'
 export { createInstallHandler } from './api/install.route.js'
@@ -48,4 +52,6 @@ export type {
   SeedDefinition,
   MostaSetupConfig,
   ModuleDefinition,
+  SetupMode,
+  NetConfig,
 } from './types/index.js'

@@ -115,6 +115,49 @@ export function createSetupRoutes(config: SetupRoutesConfig) {
       'wire-module': { GET: wireModule.GET, POST: wireModule.POST },
       'reconfig': { GET: reconfig.GET, POST: reconfig.POST },
       'install': installHandlers,
+      // NET mode endpoints
+      'net-test': {
+        POST: async (req: Request) => {
+          const body = await req.json() as { url?: string }
+          if (!body?.url) return Response.json({ ok: false, error: 'URL requise' }, { status: 400 })
+          try {
+            const { NetClient } = await import('../lib/net-client.js')
+            const client = new NetClient({ url: body.url })
+            const health = await client.health()
+            return Response.json({ ok: true, ...health })
+          } catch (e: unknown) {
+            return Response.json({ ok: false, error: e instanceof Error ? e.message : 'Connexion echouee' })
+          }
+        },
+      },
+      'net-schemas': {
+        POST: async (req: Request) => {
+          const body = await req.json() as { url?: string }
+          if (!body?.url) return Response.json({ ok: false, error: 'URL requise' }, { status: 400 })
+          try {
+            const { NetClient } = await import('../lib/net-client.js')
+            const client = new NetClient({ url: body.url })
+            const config = await client.getSchemasConfig()
+            return Response.json({ ok: true, ...config })
+          } catch (e: unknown) {
+            return Response.json({ ok: false, error: e instanceof Error ? e.message : 'Erreur' })
+          }
+        },
+      },
+      'net-db-test': {
+        POST: async (req: Request) => {
+          const body = await req.json() as { url?: string }
+          if (!body?.url) return Response.json({ ok: false, error: 'URL requise' }, { status: 400 })
+          try {
+            const { NetClient } = await import('../lib/net-client.js')
+            const client = new NetClient({ url: body.url })
+            const result = await client.testDbConnection()
+            return Response.json(result)
+          } catch (e: unknown) {
+            return Response.json({ ok: false, error: e instanceof Error ? e.message : 'Erreur' })
+          }
+        },
+      },
     }
 
     return table
