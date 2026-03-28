@@ -975,6 +975,7 @@ export default function SetupWizard({
   function goBack() { if (currentStep > 0) setCurrentStep(currentStep - 1) }
 
   function dbSummaryLabel(): string {
+    if (setupMode === 'net') return `@mostajs/net — ${netUrl}`
     if (dialect === 'sqlite') return `SQLite — ./data/${dbConfig.name}.db`
     if (dialect === 'spanner') return `Cloud Spanner — ${dbConfig.name}`
     const info = DIALECT_INFO.find(d => d.key === dialect)
@@ -1549,12 +1550,13 @@ export default function SetupWizard({
                 </div>
               </div>
 
-              {/* DB summary */}
+              {/* DB / NET summary */}
               <div style={S.summaryCard}>
-                <div style={S.summaryTitle}>{t('setup.summary.dbConfig')}</div>
+                <div style={S.summaryTitle}>{setupMode === 'net' ? 'Serveur @mostajs/net' : t('setup.summary.dbConfig')}</div>
                 <div style={S.summaryText}>
                   <span style={{ fontFamily: 'monospace' }}>{dbSummaryLabel()}</span>
-                  {dialect !== 'sqlite' && dbConfig.user && <span style={{ display: 'block', marginTop: 4 }}>Utilisateur: {dbConfig.user}</span>}
+                  {setupMode === 'net' && netTransport && <span style={{ display: 'block', marginTop: 4 }}>Transport: {netTransport}</span>}
+                  {setupMode !== 'net' && dialect !== 'sqlite' && dbConfig.user && <span style={{ display: 'block', marginTop: 4 }}>Utilisateur: {dbConfig.user}</span>}
                 </div>
               </div>
 
