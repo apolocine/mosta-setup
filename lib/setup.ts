@@ -137,8 +137,10 @@ async function runNetInstall(
       apiKey: installConfig.net!.apiKey,
     })
 
-    // 1. Write .env.local with NET config
+    // 1. Préparer les vars .env.local (écriture REPORTÉE à la fin pour éviter
+    //    le hot-reload de Next.js qui interrompt le seed en cours)
     const extraVars: Record<string, string> = {
+      MOSTA_DATA: 'net',
       MOSTA_NET_URL: installConfig.net!.url,
       MOSTA_NET_TRANSPORT: installConfig.net!.transport,
       ...(installConfig.net!.apiKey ? { MOSTA_NET_API_KEY: installConfig.net!.apiKey } : {}),
@@ -147,24 +149,13 @@ async function runNetInstall(
     if (installConfig.modules?.length) {
       extraVars['MOSTAJS_MODULES'] = installConfig.modules.join(',')
     }
-    await writeEnvLocal({
-      dialect: 'net' as any,
-      uri: installConfig.net!.url,
-      extraVars,
-      port: setupConfig.defaultPort,
-    })
 
     const seeded: string[] = []
 
-    // 2. Verify NET server is reachable + load collection mapping
+    // 2. Verify NET server is reachable
     const health = await net.health()
-    if (!health.entities?.length) {
-      return { ok: false, error: 'Serveur NET accessible mais aucun schema chargé', needsRestart: false }
-    }
-    await net.loadCollectionMap()
 
-    // 3. Seed RBAC via NET REST
-    // Read setup.json directly to get RBAC definitions
+    // 3. Read setup.json for RBAC definitions
     const fs = await import('fs')
     const path = await import('path')
     let setupJson: any = null
@@ -172,6 +163,64 @@ async function runNetInstall(
     if (fs.existsSync(setupJsonPath)) {
       try { setupJson = JSON.parse(fs.readFileSync(setupJsonPath, 'utf-8')) } catch {}
     }
+
+    // 4. If server has no entities, try sending schemas via POST /api/upload-schemas-json
+    if (!health.entities?.length) {
+      let schemasToSend: any[] = []
+      // Try schemas.json local
+      const schemasJsonPath = path.resolve(process.cwd(), 'schemas.json')
+      if (fs.existsSync(schemasJsonPath)) {
+        try { schemasToSend = JSON.parse(fs.readFileSync(schemasJsonPath, 'utf-8')) } catch {}
+      }
+      // Fallback: ORM registry
+      if (schemasToSend.length === 0) {
+        try {
+          const { getAllSchemas } = await import('@mostajs/orm')
+          schemasToSend = getAllSchemas()
+        } catch {}
+      }
+      if (schemasToSend.length > 0) {
+        // Send schemas to NET server — it will restart to register routes
+        try {
+          const res = await fetch(`${installConfig.net!.url}/api/upload-schemas-json`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ schemas: schemasToSend }),
+          })
+          const result = await res.json()
+          if (result.ok) {
+            seeded.push(`schemas (${schemasToSend.length})`)
+            // Si le serveur redémarre, attendre qu'il soit de retour
+            if (result.needsRestart) {
+              console.log('[Setup] Serveur NET redémarre pour charger les schemas...')
+              await new Promise(r => setTimeout(r, 4000)) // Laisser le temps au process.exit + restart
+              // Poll health jusqu'à ce que le serveur soit de retour (max 30s)
+              for (let i = 0; i < 30; i++) {
+                try {
+                  const h = await net.health()
+                  if (h.entities?.length > 0) {
+                    console.log(`[Setup] Serveur NET de retour (${h.entities.length} entités)`)
+                    break
+                  }
+                } catch {}
+                await new Promise(r => setTimeout(r, 1000))
+              }
+              // Recharger la collection map
+              await net.loadCollectionMap()
+            }
+          }
+        } catch (e) {
+          console.error('[Setup] Failed to upload schemas to NET server:', e)
+        }
+      }
+      // Re-check
+      const health2 = await net.health()
+      if (!health2.entities?.length) {
+        return { ok: false, error: 'Serveur NET accessible mais aucun schema charge. Placez un schemas.json dans le repertoire du serveur NET et redemarrez-le.', needsRestart: false }
+      }
+    }
+
+    await net.loadCollectionMap()
 
     if (setupJson?.rbac) {
       const rbac = setupJson.rbac
@@ -276,7 +325,29 @@ async function runNetInstall(
       }
     }
 
-    return { ok: true, needsRestart: false, seeded }
+    // 6. Run code-based optionalSeeds (e.g. demoAccess: resolve slugs, create accesses)
+    if (setupConfig.optionalSeeds && installConfig.seed) {
+      for (const seedDef of setupConfig.optionalSeeds) {
+        if (installConfig.seed[seedDef.key]) {
+          try {
+            await seedDef.run({})
+            seeded.push(seedDef.key)
+          } catch (e) {
+            console.error(`[Setup NET] optionalSeed "${seedDef.key}" failed:`, e)
+          }
+        }
+      }
+    }
+
+    // Écrire .env.local en DERNIER (après tout le seed)
+    // pour éviter le hot-reload Next.js pendant le seed
+    await writeEnvLocal({
+      skipDb: true,
+      extraVars,
+      port: setupConfig.defaultPort,
+    })
+
+    return { ok: true, needsRestart: true, seeded }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur installation NET'
     return { ok: false, error: message, needsRestart: false }

@@ -20,7 +20,7 @@ export type { SetupJson, SetupJsonRbac, SetupJsonSeed, SetupJsonCategory, SetupJ
 export { createSetupRoutes } from './api/routes.js'
 export type { SetupRoutesConfig } from './api/routes.js'
 
-// NET client (for setup via @mostajs/net)
+// NET client (setup-specific, with loadCollectionMap + resolveCollection)
 export { NetClient } from './lib/net-client.js'
 export type { NetClientConfig, NetHealthResponse } from './lib/net-client.js'
 
