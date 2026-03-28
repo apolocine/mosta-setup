@@ -50,6 +50,11 @@ export async function writeEnvLocal(options: EnvWriterOptions): Promise<boolean>
       } else if (/^DB_SCHEMA_STRATEGY=/m.test(content)) {
         content = content.replace(/^DB_SCHEMA_STRATEGY=.*$/m, '#DB_SCHEMA_STRATEGY=update')
       }
+
+      // Mode ORM : commenter les lignes NET résiduelles
+      content = content.replace(/^MOSTA_NET_URL=(.+)$/m, '#MOSTA_NET_URL=$1')
+      content = content.replace(/^MOSTA_NET_TRANSPORT=(.+)$/m, '#MOSTA_NET_TRANSPORT=$1')
+      content = content.replace(/^MOSTA_NET_API_KEY=(.+)$/m, '#MOSTA_NET_API_KEY=$1')
     }
 
     // Write extra vars

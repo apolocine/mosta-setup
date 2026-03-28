@@ -40,7 +40,9 @@ export async function runInstall(
   try {
     // 1. Compose URI and write .env.local
     const uri = composeDbUri(installConfig.dialect, installConfig.db)
-    const extraVars = { ...setupConfig.extraEnvVars }
+    const extraVars: Record<string, string> = { ...setupConfig.extraEnvVars }
+    // Mode ORM : forcer MOSTA_DATA=orm (écrase un éventuel =net résiduel)
+    extraVars['MOSTA_DATA'] = 'orm'
     if (installConfig.modules?.length) {
       extraVars['MOSTAJS_MODULES'] = installConfig.modules.join(',')
     }
