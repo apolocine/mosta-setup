@@ -158,6 +158,28 @@ export function createSetupRoutes(config: SetupRoutesConfig) {
           }
         },
       },
+      // Create admin user — delegates to @mostajs/rbac via module discovery
+      'create-admin': {
+        POST: async (req: Request) => {
+          const body = await req.json() as { email?: string; password?: string; firstName?: string; lastName?: string; url?: string }
+          if (!body?.email || !body?.password || !body?.firstName) {
+            return Response.json({ ok: false, error: 'email, password, firstName requis' }, { status: 400 })
+          }
+          try {
+            // Try rbac module createAdmin (works in both ORM and NET mode)
+            const { createAdmin } = await import('@mostajs/rbac/lib/create-admin')
+            const result = await createAdmin({
+              email: body.email,
+              password: body.password,
+              firstName: body.firstName,
+              lastName: body.lastName || '',
+            })
+            return Response.json(result)
+          } catch (e: unknown) {
+            return Response.json({ ok: false, error: e instanceof Error ? e.message : 'Erreur creation admin' })
+          }
+        },
+      },
     }
 
     return table

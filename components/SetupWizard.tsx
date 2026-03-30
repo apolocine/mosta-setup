@@ -569,6 +569,10 @@ export default function SetupWizard({
   const [netApiKey, setNetApiKey] = useState('')
   const [netTestResult, setNetTestResult] = useState<{ ok: boolean; entities?: string[]; transports?: string[]; error?: string } | null>(null)
   const [netTesting, setNetTesting] = useState(false)
+  const [schemaUploadStatus, setSchemaUploadStatus] = useState<{ phase: string; color: string } | null>(null)
+  const [schemasReady, setSchemasReady] = useState(false)
+  const [adminSaving, setAdminSaving] = useState(false)
+  const [adminSaveResult, setAdminSaveResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [dialect, setDialect] = useState<Dialect>('mongodb')
   const [dbConfig, setDbConfig] = useState<DbConfig>({ ...DIALECT_DEFAULTS.mongodb, name: `${dbNamePrefix}_prod` })
@@ -937,6 +941,7 @@ export default function SetupWizard({
           admin: { email: adminConfig.email, password: adminConfig.password, firstName: adminConfig.firstName, lastName: adminConfig.lastName },
           seed: seedOptions,
           modules: selectedModules,
+          skipCheck: adminSaveResult?.ok || false,  // Skip needsSetup check if admin was created via wizard
         }),
       })
       const data = await safeJson(res)
@@ -961,7 +966,8 @@ export default function SetupWizard({
         if (dialect === 'sqlite' || dialect === 'spanner') return dbConfig.name.trim() !== ''
         return dbTestResult?.ok === true
       case 'net-config':
-        return netTestResult?.ok === true
+        // OK si serveur connecté ET (schemas déjà chargés OU uploadés)
+        return netTestResult?.ok === true && ((netTestResult.entities?.length ?? 0) > 0 || schemasReady)
       case 'admin':
         return adminConfig.firstName.trim() !== '' && adminConfig.lastName.trim() !== '' &&
           adminConfig.email.trim() !== '' && adminConfig.password.length >= 6 &&
@@ -1480,6 +1486,172 @@ export default function SetupWizard({
                 </div>
               )}
 
+              {/* ─── Schema upload section (shown when server connected but 0 entities) ─── */}
+              {netTestResult?.ok && netTestResult.entities?.length === 0 && !schemasReady && (
+                <div style={{
+                  padding: 16, borderRadius: 8, marginBottom: 16,
+                  backgroundColor: '#fffbeb', border: '1px solid #fde68a',
+                }}>
+                  <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 8 }}>
+                    ⚠️ Le serveur n'a aucun schema — envoyez les schemas pour continuer
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                    {/* Upload schemas.json */}
+                    <button
+                      style={{ ...S.btn('primary'), fontSize: 13 }}
+                      onClick={() => document.getElementById('schemaFileInput')?.click()}
+                    >
+                      📄 Envoyer schemas.json
+                    </button>
+                    <input
+                      id="schemaFileInput"
+                      type="file"
+                      accept=".json"
+                      style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        setSchemaUploadStatus({ phase: '📤 Envoi du fichier...', color: '#2563eb' })
+                        try {
+                          const text = await file.text()
+                          const schemas = JSON.parse(text)
+                          const res = await fetch(netUrl + '/api/upload-schemas-json', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ schemas }),
+                          })
+                          const data = await res.json()
+                          if (data.ok) {
+                            if (data.needsRestart) {
+                              setSchemaUploadStatus({ phase: '⏳ Serveur redémarre...', color: '#d97706' })
+                              // Poll health
+                              for (let i = 0; i < 30; i++) {
+                                await new Promise(r => setTimeout(r, 1500))
+                                setSchemaUploadStatus({ phase: `⏳ En attente du serveur... (${i + 1}/30)`, color: '#d97706' })
+                                try {
+                                  const h = await fetch(netUrl + '/health')
+                                  if (h.ok) {
+                                    const hd = await h.json()
+                                    if (hd.entities?.length > 0) {
+                                      setSchemaUploadStatus({ phase: `✅ Serveur prêt — ${hd.entities.length} entités`, color: '#16a34a' })
+                                      setSchemasReady(true)
+                                      setNetTestResult({ ...netTestResult, entities: hd.entities })
+                                      break
+                                    }
+                                  }
+                                } catch {}
+                              }
+                            } else {
+                              setSchemaUploadStatus({ phase: `✅ ${data.count} schemas chargés`, color: '#16a34a' })
+                              setSchemasReady(true)
+                            }
+                          } else {
+                            setSchemaUploadStatus({ phase: `❌ ${data.error}`, color: '#dc2626' })
+                          }
+                        } catch (err: any) {
+                          setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' })
+                        }
+                        e.target.value = ''
+                      }}
+                    />
+                    {/* Upload ZIP de schemas */}
+                    <button
+                      style={{ ...S.btn('outline'), fontSize: 13 }}
+                      onClick={() => document.getElementById('schemaZipInput')?.click()}
+                    >
+                      📦 Envoyer ZIP de schemas
+                    </button>
+                    <input
+                      id="schemaZipInput"
+                      type="file"
+                      accept=".zip"
+                      style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        setSchemaUploadStatus({ phase: '📤 Envoi du ZIP...', color: '#2563eb' })
+                        try {
+                          const formData = new FormData()
+                          formData.append('file', file)
+                          const res = await fetch(netUrl + '/api/upload-schemas', {
+                            method: 'POST',
+                            body: formData,
+                          })
+                          const data = await res.json()
+                          if (data.ok) {
+                            setSchemaUploadStatus({ phase: `✅ ${data.count} schemas importés depuis ZIP`, color: '#16a34a' })
+                            setSchemasReady(true)
+                            // Refresh test result
+                            const h = await fetch(netUrl + '/health').then(r => r.json())
+                            if (h.entities) setNetTestResult({ ...netTestResult, entities: h.entities })
+                          } else {
+                            setSchemaUploadStatus({ phase: `❌ ${data.error}`, color: '#dc2626' })
+                          }
+                        } catch (err: any) {
+                          setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' })
+                        }
+                        e.target.value = ''
+                      }}
+                    />
+                    {/* Scanner un répertoire */}
+                    <button
+                      style={{ ...S.btn('outline'), fontSize: 13 }}
+                      onClick={async () => {
+                        const schemasPath = prompt('Chemin vers le répertoire des schemas (*.schema.ts) :', './src/dal/schemas')
+                        if (!schemasPath) return
+                        setSchemaUploadStatus({ phase: '🔍 Scan en cours...', color: '#2563eb' })
+                        try {
+                          const res = await fetch(netUrl + '/api/scan-schemas', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ path: schemasPath }),
+                          })
+                          const data = await res.json()
+                          if (data.ok && data.count > 0) {
+                            // Générer et appliquer
+                            const genRes = await fetch(netUrl + '/api/generate-schemas', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ path: schemasPath }),
+                            })
+                            const genData = await genRes.json()
+                            if (genData.ok) {
+                              setSchemaUploadStatus({ phase: `✅ ${genData.count} schemas scannés et générés`, color: '#16a34a' })
+                              setSchemasReady(true)
+                              const h = await fetch(netUrl + '/health').then(r => r.json())
+                              if (h.entities) setNetTestResult({ ...netTestResult, entities: h.entities })
+                            }
+                          } else {
+                            setSchemaUploadStatus({ phase: `❌ Aucun schema trouvé dans ${schemasPath}`, color: '#dc2626' })
+                          }
+                        } catch (err: any) {
+                          setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' })
+                        }
+                      }}
+                    >
+                      📁 Scanner un répertoire
+                    </button>
+                  </div>
+                  {schemaUploadStatus && (
+                    <div style={{ fontSize: 13, fontWeight: 500, color: schemaUploadStatus.color }}>
+                      {schemaUploadStatus.phase}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Show green ready state when schemas are loaded */}
+              {netTestResult?.ok && (netTestResult.entities?.length ?? 0) > 0 && (
+                <div style={{
+                  padding: 12, borderRadius: 8, marginBottom: 16,
+                  backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
+                }}>
+                  <div style={{ fontWeight: 600, color: '#166534' }}>
+                    ✅ Serveur prêt — {netTestResult.entities?.length} entités chargées
+                  </div>
+                </div>
+              )}
+
               <div style={S.navRow}>
                 <button style={S.btn('outline')} onClick={goBack}>← {t('setup.back')}</button>
                 <button style={S.btn('primary', !canGoNext())} onClick={goNext} disabled={!canGoNext()}>{t('setup.next')} →</button>
@@ -1530,6 +1702,56 @@ export default function SetupWizard({
               </div>
               {adminConfig.password && adminConfig.confirmPassword && adminConfig.password !== adminConfig.confirmPassword && (
                 <p style={{ fontSize: 13, color: '#dc2626' }}>{t('setup.admin.passwordMismatch')}</p>
+              )}
+
+              {/* Bouton Enregistrer l'admin (mode NET — envoie directement au serveur) */}
+              {setupMode === 'net' && (
+                <div style={{ marginTop: 16, marginBottom: 16 }}>
+                  <button
+                    style={{ ...S.btn('primary'), backgroundColor: '#16a34a' }}
+                    disabled={adminSaving || !adminConfig.email || !adminConfig.password || !adminConfig.firstName || adminConfig.password !== adminConfig.confirmPassword}
+                    onClick={async () => {
+                      setAdminSaving(true)
+                      setAdminSaveResult(null)
+                      try {
+                        // 1. Hash password côté serveur via un endpoint dédié, ou côté client
+                        // On envoie le mot de passe en clair — le serveur Next.js le hashera
+                        const res = await fetch(ep.setupJson.replace('setup-json', 'create-admin'), {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            url: netUrl,
+                            email: adminConfig.email,
+                            password: adminConfig.password,
+                            firstName: adminConfig.firstName,
+                            lastName: adminConfig.lastName,
+                          }),
+                        })
+                        const data = await res.json()
+                        if (data.ok) {
+                          setAdminSaveResult({ ok: true, message: `✅ Admin ${adminConfig.email} créé sur le serveur NET` })
+                        } else {
+                          setAdminSaveResult({ ok: false, message: `❌ ${data.error || 'Erreur'}` })
+                        }
+                      } catch (err: any) {
+                        setAdminSaveResult({ ok: false, message: `❌ ${err.message}` })
+                      }
+                      setAdminSaving(false)
+                    }}
+                  >
+                    {adminSaving ? '⏳ Enregistrement...' : '💾 Enregistrer l\'admin sur le serveur'}
+                  </button>
+                  {adminSaveResult && (
+                    <div style={{
+                      marginTop: 8, padding: 8, borderRadius: 6, fontSize: 13, fontWeight: 500,
+                      backgroundColor: adminSaveResult.ok ? '#f0fdf4' : '#fef2f2',
+                      color: adminSaveResult.ok ? '#166534' : '#991b1b',
+                      border: `1px solid ${adminSaveResult.ok ? '#bbf7d0' : '#fecaca'}`,
+                    }}>
+                      {adminSaveResult.message}
+                    </div>
+                  )}
+                </div>
               )}
 
               <div style={S.navRow}>
