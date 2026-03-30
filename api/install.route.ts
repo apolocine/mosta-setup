@@ -16,11 +16,13 @@ export function createInstallHandler(
   setupConfig: MostaSetupConfig,
 ) {
   async function POST(req: Request) {
-    if (!(await needsSetup())) {
-      return Response.json({ error: 'Already installed' }, { status: 400 })
+    const body: InstallConfig = await req.json()
+
+    // Skip needsSetup check if admin was already created (wizard creates admin before seed)
+    if (!(body as any).skipCheck && !(await needsSetup())) {
+      return Response.json({ ok: false, error: 'Installation deja effectuee' }, { status: 400 })
     }
 
-    const body: InstallConfig = await req.json()
     const result = await runInstall(body, setupConfig)
     return Response.json(result)
   }

@@ -68,26 +68,63 @@ export async function runInstall(
       })
     }
 
-    // 3. Set process.env in-memory
+    // 3. Set process.env in-memory (force ORM mode even if app started as NET)
+    process.env.MOSTA_DATA = 'orm'
     process.env.DB_DIALECT = installConfig.dialect
     process.env.SGBD_URI = uri
     if (installConfig.dialect !== 'mongodb') {
       process.env.DB_SCHEMA_STRATEGY = 'update'
     }
+    // Clear NET vars to avoid confusion
+    delete process.env.MOSTA_NET_URL
+    delete process.env.MOSTA_NET_TRANSPORT
 
     // 4. Disconnect existing dialect singleton
     const { disconnectDialect } = await import('@mostajs/orm')
     await disconnectDialect()
 
-    // 4. Seed RBAC
     const seeded: string[] = []
-    if (setupConfig.seedRBAC) {
-      await setupConfig.seedRBAC()
-      seeded.push('categories', 'permissions', 'roles')
+
+    // 4. Discover modules and seed RBAC
+    const { discoverModules } = await import('./module-registry.js')
+    const modules = await discoverModules(installConfig.modules)
+
+    // 4a. Read setup.json for RBAC + seed data
+    const fs = await import('fs')
+    const path = await import('path')
+    let setupJson: any = null
+    const setupJsonPath = path.resolve(process.cwd(), 'setup.json')
+    if (fs.existsSync(setupJsonPath)) {
+      try { setupJson = JSON.parse(fs.readFileSync(setupJsonPath, 'utf-8')) } catch {}
     }
 
-    // 5. Create admin user
-    if (setupConfig.createAdmin) {
+    // 4b. Seed each module (RBAC gets setup.json.rbac data from Studio)
+    for (const mod of modules) {
+      try {
+        const seedData = setupJson?.[mod.name] || {}
+        await mod.seed(seedData)
+        seeded.push(mod.name)
+      } catch (err) {
+        console.error(`[Setup] Module "${mod.name}" seed failed:`, err)
+      }
+    }
+
+    // 5. Create admin via rbac module (not setup — rbac handles hash + role)
+    const rbacModule = modules.find(m => m.createAdmin)
+    if (rbacModule && installConfig.admin?.email) {
+      try {
+        await rbacModule.createAdmin!({
+          email: installConfig.admin.email,
+          password: installConfig.admin.password,
+          firstName: installConfig.admin.firstName,
+          lastName: installConfig.admin.lastName,
+        })
+        seeded.push('admin')
+      } catch (err) {
+        console.error('[Setup] createAdmin failed:', err)
+      }
+    } else if (setupConfig.createAdmin) {
+      // Legacy fallback — app provides its own createAdmin
       const bcryptModule = await import('bcryptjs')
       const bcrypt = bcryptModule.default || bcryptModule
       const hashedPassword = await bcrypt.hash(installConfig.admin.password, 12)
@@ -100,15 +137,16 @@ export async function runInstall(
       seeded.push('admin')
     }
 
-    // 6. Optional seeds (runtime registry or legacy)
-    if (setupConfig.runModuleSeeds) {
-      await setupConfig.runModuleSeeds(installConfig.modules)
-      seeded.push('module-seeds')
-    } else if (setupConfig.optionalSeeds && installConfig.seed) {
+    // 6. Optional seeds from setup.json (app-specific: activities, clients, plans)
+    if (setupConfig.optionalSeeds && installConfig.seed) {
       for (const seedDef of setupConfig.optionalSeeds) {
         if (installConfig.seed[seedDef.key]) {
-          await seedDef.run({})
-          seeded.push(seedDef.key)
+          try {
+            await seedDef.run({})
+            seeded.push(seedDef.key)
+          } catch (err) {
+            console.error(`[Setup] Seed "${seedDef.key}" failed:`, err)
+          }
         }
       }
     }
@@ -134,6 +172,10 @@ async function runNetInstall(
   setupConfig: MostaSetupConfig,
 ): Promise<{ ok: boolean; error?: string; needsRestart: boolean; seeded?: string[] }> {
   try {
+    // Force NET mode in-memory (even if app started as ORM)
+    process.env.MOSTA_DATA = 'net'
+    process.env.MOSTA_NET_URL = installConfig.net!.url
+
     const net = new NetClient({
       url: installConfig.net!.url,
       apiKey: installConfig.net!.apiKey,
@@ -154,8 +196,18 @@ async function runNetInstall(
 
     const seeded: string[] = []
 
-    // 2. Verify NET server is reachable
-    const health = await net.health()
+    // 2. Verify NET server is reachable (retry up to 10s if just restarted)
+    let health: any = null
+    for (let i = 0; i < 10; i++) {
+      try {
+        health = await net.health()
+        if (health.entities?.length > 0) break
+      } catch {}
+      await new Promise(r => setTimeout(r, 1000))
+    }
+    if (!health) {
+      return { ok: false, error: 'Serveur NET non joignable', needsRestart: false }
+    }
 
     // 3. Read setup.json for RBAC definitions
     const fs = await import('fs')
@@ -166,8 +218,8 @@ async function runNetInstall(
       try { setupJson = JSON.parse(fs.readFileSync(setupJsonPath, 'utf-8')) } catch {}
     }
 
-    // 4. If server has no entities, try sending schemas via POST /api/upload-schemas-json
-    if (!health.entities?.length) {
+    // 4. If server has no entities (schemas not yet uploaded), try sending them
+    if (!health?.entities?.length) {
       let schemasToSend: any[] = []
       // Try schemas.json local
       const schemasJsonPath = path.resolve(process.cwd(), 'schemas.json')
@@ -223,6 +275,7 @@ async function runNetInstall(
     }
 
     await net.loadCollectionMap()
+    console.log(`[Setup NET] Serveur prêt — ${health?.entities?.length ?? 0} entités, collectionMap chargée`)
 
     if (setupJson?.rbac) {
       const rbac = setupJson.rbac
