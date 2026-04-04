@@ -1486,102 +1486,32 @@ export default function SetupWizard({
                 </div>
               )}
 
-              {/* ─── Schema upload section (shown when server connected but 0 entities) ─── */}
-              {netTestResult?.ok && netTestResult.entities?.length === 0 && !schemasReady && (
-                <div style={{
-                  padding: 16, borderRadius: 8, marginBottom: 16,
-                  backgroundColor: '#fffbeb', border: '1px solid #fde68a',
-                }}>
-                  <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 8 }}>
-                    ⚠️ Le serveur n'a aucun schema — envoyez les schemas pour continuer
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                    {/* Upload schemas.json */}
-                    <button
-                      style={{ ...S.btn('primary'), fontSize: 13 }}
-                      onClick={() => document.getElementById('schemaFileInput')?.click()}
-                    >
-                      📄 Envoyer schemas.json
+              {/* ─── 3-step project setup (shown when server connected) ─── */}
+              {netTestResult?.ok && (
+                <div style={{ padding: 16, borderRadius: 8, marginBottom: 16, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+
+                  {/* Step 1: Upload schemas */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', minWidth: 65 }}>Etape 1:</span>
+                    <button style={{ ...S.btn('primary'), fontSize: 13 }}
+                      onClick={() => document.getElementById('schemaFileInput')?.click()}>
+                      Uploader schemas.json
                     </button>
-                    <input
-                      id="schemaFileInput"
-                      type="file"
-                      accept=".json"
-                      style={{ display: 'none' }}
+                    <input id="schemaFileInput" type="file" accept=".json" style={{ display: 'none' }}
                       onChange={async (e) => {
                         const file = e.target.files?.[0]
                         if (!file) return
-                        setSchemaUploadStatus({ phase: '📤 Envoi du fichier...', color: '#2563eb' })
+                        setSchemaUploadStatus({ phase: 'Envoi...', color: '#2563eb' })
                         try {
                           const text = await file.text()
                           const schemas = JSON.parse(text)
-                          const res = await fetch(netUrl + '/api/upload-schemas-json', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ schemas }),
-                          })
-                          const data = await res.json()
-                          if (data.ok) {
-                            if (data.needsRestart) {
-                              setSchemaUploadStatus({ phase: '⏳ Serveur redémarre...', color: '#d97706' })
-                              // Poll health
-                              for (let i = 0; i < 30; i++) {
-                                await new Promise(r => setTimeout(r, 1500))
-                                setSchemaUploadStatus({ phase: `⏳ En attente du serveur... (${i + 1}/30)`, color: '#d97706' })
-                                try {
-                                  const h = await fetch(netUrl + '/health')
-                                  if (h.ok) {
-                                    const hd = await h.json()
-                                    if (hd.entities?.length > 0) {
-                                      setSchemaUploadStatus({ phase: `✅ Serveur prêt — ${hd.entities.length} entités`, color: '#16a34a' })
-                                      setSchemasReady(true)
-                                      setNetTestResult({ ...netTestResult, entities: hd.entities })
-                                      break
-                                    }
-                                  }
-                                } catch {}
-                              }
-                            } else {
-                              setSchemaUploadStatus({ phase: `✅ ${data.count} schemas chargés`, color: '#16a34a' })
-                              setSchemasReady(true)
-                            }
-                          } else {
-                            setSchemaUploadStatus({ phase: `❌ ${data.error}`, color: '#dc2626' })
-                          }
-                        } catch (err: any) {
-                          setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' })
-                        }
-                        e.target.value = ''
-                      }}
-                    />
-                    {/* Upload ZIP de schemas */}
-                    <button
-                      style={{ ...S.btn('outline'), fontSize: 13 }}
-                      onClick={() => document.getElementById('schemaZipInput')?.click()}
-                    >
-                      📦 Envoyer ZIP de schemas
-                    </button>
-                    <input
-                      id="schemaZipInput"
-                      type="file"
-                      accept=".zip"
-                      style={{ display: 'none' }}
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0]
-                        if (!file) return
-                        setSchemaUploadStatus({ phase: '📤 Envoi du ZIP...', color: '#2563eb' })
-                        try {
-                          const formData = new FormData()
-                          formData.append('file', file)
                           const res = await fetch(netUrl + '/api/upload-schemas', {
-                            method: 'POST',
-                            body: formData,
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ schemas: Array.isArray(schemas) ? schemas : [schemas] }),
                           })
                           const data = await res.json()
                           if (data.ok) {
-                            setSchemaUploadStatus({ phase: `✅ ${data.count} schemas importés depuis ZIP`, color: '#16a34a' })
-                            setSchemasReady(true)
-                            // Refresh test result
+                            setSchemaUploadStatus({ phase: `✅ ${data.count} schemas uploades`, color: '#16a34a' })
                             const h = await fetch(netUrl + '/health').then(r => r.json())
                             if (h.entities) setNetTestResult({ ...netTestResult, entities: h.entities })
                           } else {
@@ -1593,62 +1523,54 @@ export default function SetupWizard({
                         e.target.value = ''
                       }}
                     />
-                    {/* Scanner un répertoire */}
-                    <button
-                      style={{ ...S.btn('outline'), fontSize: 13 }}
+                    <span style={{ fontSize: 12, color: schemaUploadStatus?.color || '#94a3b8' }}>
+                      {schemaUploadStatus?.phase || ((netTestResult.entities?.length ?? 0) > 0 ? `✅ ${netTestResult.entities!.length} schemas` : 'Aucun schema')}
+                    </span>
+                  </div>
+
+                  {/* Step 2: Apply schema */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', minWidth: 65 }}>Etape 2:</span>
+                    <button style={{ ...S.btn('primary'), fontSize: 13, backgroundColor: '#f59e0b', color: '#000' }}
+                      disabled={(netTestResult.entities?.length ?? 0) === 0}
                       onClick={async () => {
-                        const schemasPath = prompt('Chemin vers le répertoire des schemas (*.schema.ts) :', './src/dal/schemas')
-                        if (!schemasPath) return
-                        setSchemaUploadStatus({ phase: '🔍 Scan en cours...', color: '#2563eb' })
+                        setSchemaUploadStatus({ phase: 'Application du schema...', color: '#2563eb' })
                         try {
-                          const res = await fetch(netUrl + '/api/scan-schemas', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ path: schemasPath }),
-                          })
+                          const res = await fetch(netUrl + '/api/apply-schema', { method: 'POST' })
                           const data = await res.json()
-                          if (data.ok && data.count > 0) {
-                            // Générer et appliquer
-                            const genRes = await fetch(netUrl + '/api/generate-schemas', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ path: schemasPath }),
-                            })
-                            const genData = await genRes.json()
-                            if (genData.ok) {
-                              setSchemaUploadStatus({ phase: `✅ ${genData.count} schemas scannés et générés`, color: '#16a34a' })
-                              setSchemasReady(true)
-                              const h = await fetch(netUrl + '/health').then(r => r.json())
-                              if (h.entities) setNetTestResult({ ...netTestResult, entities: h.entities })
-                            }
-                          } else {
-                            setSchemaUploadStatus({ phase: `❌ Aucun schema trouvé dans ${schemasPath}`, color: '#dc2626' })
-                          }
-                        } catch (err: any) {
-                          setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' })
-                        }
-                      }}
-                    >
-                      📁 Scanner un répertoire
+                          setSchemaUploadStatus({ phase: data.ok ? `✅ ${data.message || 'Schema applique'}` : `❌ ${data.error || data.message}`, color: data.ok ? '#16a34a' : '#dc2626' })
+                        } catch (err: any) { setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' }) }
+                      }}>
+                      Appliquer le schema
                     </button>
                   </div>
+
+                  {/* Step 3: Save config */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', minWidth: 65 }}>Etape 3:</span>
+                    <button style={{ ...S.btn('primary'), fontSize: 13, backgroundColor: '#22c55e' }}
+                      disabled={(netTestResult.entities?.length ?? 0) === 0}
+                      onClick={async () => {
+                        setSchemaUploadStatus({ phase: 'Enregistrement...', color: '#2563eb' })
+                        try {
+                          const res = await fetch(netUrl + '/api/save-config', { method: 'POST' })
+                          const data = await res.json()
+                          if (data.ok) {
+                            setSchemaUploadStatus({ phase: '✅ Config enregistree', color: '#16a34a' })
+                            setSchemasReady(true)
+                          } else { setSchemaUploadStatus({ phase: `❌ ${data.error || data.message}`, color: '#dc2626' }) }
+                        } catch (err: any) { setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' }) }
+                      }}>
+                      Enregistrer la config
+                    </button>
+                  </div>
+
+                  {/* Status */}
                   {schemaUploadStatus && (
-                    <div style={{ fontSize: 13, fontWeight: 500, color: schemaUploadStatus.color }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: schemaUploadStatus.color, marginTop: 4 }}>
                       {schemaUploadStatus.phase}
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* Show green ready state when schemas are loaded */}
-              {netTestResult?.ok && (netTestResult.entities?.length ?? 0) > 0 && (
-                <div style={{
-                  padding: 12, borderRadius: 8, marginBottom: 16,
-                  backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
-                }}>
-                  <div style={{ fontWeight: 600, color: '#166534' }}>
-                    ✅ Serveur prêt — {netTestResult.entities?.length} entités chargées
-                  </div>
                 </div>
               )}
 
