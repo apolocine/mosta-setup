@@ -1445,7 +1445,7 @@ export default function SetupWizard({
                     const res = await fetch(ep.setupJson.replace('setup-json', 'net-test'), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url: netUrl }),
+                      body: JSON.stringify({ url: netUrl, transport: netTransport }),
                     })
                     const data = await res.json()
                     setNetTestResult(data)

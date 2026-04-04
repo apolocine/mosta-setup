@@ -118,13 +118,35 @@ export function createSetupRoutes(config: SetupRoutesConfig) {
       // NET mode endpoints
       'net-test': {
         POST: async (req: Request) => {
-          const body = await req.json() as { url?: string }
+          const body = await req.json() as { url?: string; transport?: string }
           if (!body?.url) return Response.json({ ok: false, error: 'URL requise' }, { status: 400 })
           try {
             const { NetClient } = await import('../lib/net-client.js')
             const client = new NetClient({ url: body.url })
             const health = await client.health()
-            return Response.json({ ok: true, ...health })
+            // Auto-save MOSTA_DATA, MOSTA_NET_URL, MOSTA_NET_TRANSPORT in .env.local
+            try {
+              const { readFileSync, writeFileSync, existsSync } = await import('fs')
+              const { resolve } = await import('path')
+              const envPath = resolve(process.cwd(), '.env.local')
+              let content = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : ''
+              const updates: Record<string, string> = {
+                'MOSTA_DATA': 'net',
+                'MOSTA_NET_URL': body.url,
+                'MOSTA_NET_TRANSPORT': body.transport || 'rest',
+              }
+              for (const [key, val] of Object.entries(updates)) {
+                const regex = new RegExp(`^${key}=.*$`, 'm')
+                if (regex.test(content)) {
+                  content = content.replace(regex, `${key}=${val}`)
+                } else {
+                  content += `\n${key}=${val}`
+                }
+                process.env[key] = val
+              }
+              writeFileSync(envPath, content)
+            } catch {}
+            return Response.json({ ok: true, ...health, saved: true })
           } catch (e: unknown) {
             return Response.json({ ok: false, error: e instanceof Error ? e.message : 'Connexion echouee' })
           }
