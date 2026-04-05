@@ -587,6 +587,7 @@ export default function SetupWizard({
   const [adminConfig, setAdminConfig] = useState<AdminConfig>({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' })
   const [seedOptions, setSeedOptions] = useState<SeedOptions>({})
   const [availableSeeds, setAvailableSeeds] = useState<{ key: string; label: string; description: string; icon?: string; default: boolean }[]>([])
+  const [seedStatus, setSeedStatus] = useState<Record<string, { sending: boolean; result?: string; ok?: boolean }>>({})
   const [availableModules, setAvailableModules] = useState<ModuleDefinition[]>([])
   const [selectedModules, setSelectedModules] = useState<string[]>([])
   const [detectedModules, setDetectedModules] = useState<string[]>([])
@@ -1758,15 +1759,70 @@ export default function SetupWizard({
                 <div style={S.summaryTitle}>{t('setup.summary.seedTitle')}</div>
                 <p style={{ ...S.summaryText, marginBottom: 12 }}>{t('setup.summary.seedInfo')}</p>
                 {availableSeeds.map(seed => (
-                  <div key={seed.key} style={S.checkRow}>
+                  <div key={seed.key} style={{ ...S.checkRow, alignItems: 'center' }}>
                     <input type="checkbox" style={S.checkbox}
                       checked={seedOptions[seed.key] ?? false}
                       onChange={e => setSeedOptions({ ...seedOptions, [seed.key]: e.target.checked })}
                       disabled={installing || !!installResult?.ok} />
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{seed.label}</div>
                       <div style={{ fontSize: 12, color: '#9ca3af' }}>{seed.description}</div>
                     </div>
+                    {setupMode === 'net' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          style={{
+                            padding: '3px 10px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                            fontSize: 12, fontWeight: 600,
+                            backgroundColor: seedStatus[seed.key]?.ok ? '#d1fae5' : '#6366f1',
+                            color: seedStatus[seed.key]?.ok ? '#065f46' : '#fff',
+                            opacity: seedStatus[seed.key]?.sending ? 0.6 : 1,
+                          }}
+                          disabled={seedStatus[seed.key]?.sending || !netUrl}
+                          onClick={async () => {
+                            setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: true } }))
+                            try {
+                              // Fetch the full seed definition from setup.json
+                              const sjRes = await fetch(ep.setupJson)
+                              const sjData = await sjRes.json()
+                              const setupJson = sjData.config ? sjData : null
+                              // Find the seed in the raw setup.json
+                              const rawRes = await fetch('/setup.json')
+                              const rawJson = await rawRes.json()
+                              const seedDef = (rawJson.seeds || []).find((s: any) => s.key === seed.key)
+                              if (!seedDef) {
+                                setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: 'Seed non trouve dans setup.json', ok: false } }))
+                                return
+                              }
+                              // Send as seed-file format with just this one seed
+                              const payload: any = { seeds: [seedDef] }
+                              // Include RBAC if this is the first seed (roles/permissions needed)
+                              if (rawJson.rbac) payload.rbac = rawJson.rbac
+                              const res = await fetch(netUrl + '/api/seed-file', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload),
+                              })
+                              const data = await res.json()
+                              if (data.ok) {
+                                setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: data.message, ok: true } }))
+                              } else {
+                                setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: data.error || 'Erreur', ok: false } }))
+                              }
+                            } catch (err: any) {
+                              setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: err.message, ok: false } }))
+                            }
+                          }}
+                        >
+                          {seedStatus[seed.key]?.sending ? '...' : seedStatus[seed.key]?.ok ? '✓' : 'Envoyer'}
+                        </button>
+                        {seedStatus[seed.key]?.result && (
+                          <span style={{ fontSize: 11, color: seedStatus[seed.key]?.ok ? '#059669' : '#dc2626' }}>
+                            {seedStatus[seed.key]?.result}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
