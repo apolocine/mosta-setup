@@ -111,6 +111,56 @@ export function createSetupRoutes(config: SetupRoutesConfig) {
       'detect-modules': { GET: detectModules.GET },
       'install-modules': { POST: installModules.POST },
       'setup-json': { GET: setupJson.GET, POST: setupJson.POST },
+      'seed-file': {
+        GET: async () => {
+          // Read seed file referenced in setup.json, or seeds.json by default
+          const fs = await import('fs')
+          const path = await import('path')
+          const setupPath = path.resolve(process.cwd(), 'setup.json')
+          let seedFileName = 'seeds.json'
+          if (fs.existsSync(setupPath)) {
+            try {
+              const setup = JSON.parse(fs.readFileSync(setupPath, 'utf-8'))
+              if (setup.seedFile) seedFileName = setup.seedFile
+            } catch {}
+          }
+          const seedPath = path.resolve(process.cwd(), seedFileName)
+          if (!fs.existsSync(seedPath)) return Response.json({ exists: false, seedFile: seedFileName })
+          try {
+            const data = JSON.parse(fs.readFileSync(seedPath, 'utf-8'))
+            const seedCount = (data.seeds || []).length
+            const rbacCount = (data.rbac?.permissions || []).length
+            return Response.json({
+              exists: true,
+              seedFile: seedFileName,
+              summary: { seeds: seedCount, rbacPermissions: rbacCount, rbacRoles: (data.rbac?.roles || []).length },
+              data,
+            })
+          } catch (e: unknown) {
+            return Response.json({ exists: false, error: e instanceof Error ? e.message : 'Parse error' })
+          }
+        },
+        POST: async (req: Request) => {
+          // Upload a seed file
+          const body = await req.json() as { seedFile?: string; data?: any }
+          if (!body?.data) return Response.json({ ok: false, error: 'data requise' }, { status: 400 })
+          const fs = await import('fs')
+          const path = await import('path')
+          const seedFileName = body.seedFile || 'seeds.json'
+          const seedPath = path.resolve(process.cwd(), seedFileName)
+          fs.writeFileSync(seedPath, JSON.stringify(body.data, null, 2))
+          // Update setup.json to reference the seed file
+          const setupPath = path.resolve(process.cwd(), 'setup.json')
+          if (fs.existsSync(setupPath)) {
+            try {
+              const setup = JSON.parse(fs.readFileSync(setupPath, 'utf-8'))
+              setup.seedFile = seedFileName
+              fs.writeFileSync(setupPath, JSON.stringify(setup, null, 2))
+            } catch {}
+          }
+          return Response.json({ ok: true, seedFile: seedFileName, seeds: (body.data.seeds || []).length })
+        },
+      },
       'upload-jar': { GET: uploadJar.GET, POST: uploadJar.POST, DELETE: uploadJar.DELETE, PATCH: uploadJar.PATCH },
       'wire-module': { GET: wireModule.GET, POST: wireModule.POST },
       'reconfig': { GET: reconfig.GET, POST: reconfig.POST },
