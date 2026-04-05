@@ -1528,26 +1528,9 @@ export default function SetupWizard({
                     </span>
                   </div>
 
-                  {/* Step 2: Apply schema */}
+                  {/* Step 2: Save config */}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', minWidth: 65 }}>Etape 2:</span>
-                    <button style={{ ...S.btn('primary'), fontSize: 13, backgroundColor: '#f59e0b', color: '#000' }}
-                      disabled={(netTestResult.entities?.length ?? 0) === 0}
-                      onClick={async () => {
-                        setSchemaUploadStatus({ phase: 'Application du schema...', color: '#2563eb' })
-                        try {
-                          const res = await fetch(netUrl + '/api/apply-schema', { method: 'POST' })
-                          const data = await res.json()
-                          setSchemaUploadStatus({ phase: data.ok ? `✅ ${data.message || 'Schema applique'}` : `❌ ${data.error || data.message}`, color: data.ok ? '#16a34a' : '#dc2626' })
-                        } catch (err: any) { setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' }) }
-                      }}>
-                      Appliquer le schema
-                    </button>
-                  </div>
-
-                  {/* Step 3: Save config */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', minWidth: 65 }}>Etape 3:</span>
                     <button style={{ ...S.btn('primary'), fontSize: 13, backgroundColor: '#22c55e' }}
                       disabled={(netTestResult.entities?.length ?? 0) === 0}
                       onClick={async () => {
@@ -1562,6 +1545,30 @@ export default function SetupWizard({
                         } catch (err: any) { setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' }) }
                       }}>
                       Enregistrer la config
+                    </button>
+                  </div>
+
+                  {/* Step 3: Apply schema */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', minWidth: 65 }}>Etape 3:</span>
+                    <button style={{ ...S.btn('primary'), fontSize: 13, backgroundColor: '#f59e0b', color: '#000' }}
+                      disabled={(netTestResult.entities?.length ?? 0) === 0}
+                      onClick={async () => {
+                        setSchemaUploadStatus({ phase: 'Application du schema...', color: '#2563eb' })
+                        try {
+                          const res = await fetch(netUrl + '/api/apply-schema', { method: 'POST' })
+                          const data = await res.json()
+                          if (data.ok) {
+                            setSchemaUploadStatus({ phase: `✅ ${data.message || 'Schema applique'}`, color: '#16a34a' })
+                            setSchemasReady(true)
+                          } else if (data.needsCreateDb) {
+                            setSchemaUploadStatus({ phase: `⚠️ ${data.error} — creez la base depuis le dashboard OctoNet`, color: '#d97706' })
+                          } else {
+                            setSchemaUploadStatus({ phase: `❌ ${data.error || data.message}`, color: '#dc2626' })
+                          }
+                        } catch (err: any) { setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' }) }
+                      }}>
+                      Appliquer le schema
                     </button>
                   </div>
 
