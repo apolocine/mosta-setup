@@ -588,6 +588,7 @@ export default function SetupWizard({
   const [seedOptions, setSeedOptions] = useState<SeedOptions>({})
   const [availableSeeds, setAvailableSeeds] = useState<{ key: string; label: string; description: string; icon?: string; default: boolean }[]>([])
   const [seedStatus, setSeedStatus] = useState<Record<string, { sending: boolean; result?: string; ok?: boolean }>>({})
+  const [seedFileData, setSeedFileData] = useState<any>(null)
   const [availableModules, setAvailableModules] = useState<ModuleDefinition[]>([])
   const [selectedModules, setSelectedModules] = useState<string[]>([])
   const [detectedModules, setDetectedModules] = useState<string[]>([])
@@ -1758,6 +1759,73 @@ export default function SetupWizard({
               <div style={S.summaryCard}>
                 <div style={S.summaryTitle}>{t('setup.summary.seedTitle')}</div>
                 <p style={{ ...S.summaryText, marginBottom: 12 }}>{t('setup.summary.seedInfo')}</p>
+                {/* Upload seed file button */}
+                {setupMode === 'net' && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+                    <label style={{
+                      padding: '4px 12px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                      fontSize: 12, fontWeight: 600, backgroundColor: '#3b82f6', color: '#fff',
+                    }}>
+                      Upload seed file (.json)
+                      <input type="file" accept=".json" style={{ display: 'none' }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setSeedStatus(prev => ({ ...prev, _upload: { sending: true } }))
+                          try {
+                            const text = await file.text()
+                            const data = JSON.parse(text)
+                            // Save to server via seed-file endpoint
+                            const res = await fetch(ep.setupJson.replace('setup-json', 'seed-file'), {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ seedFile: file.name, data }),
+                            })
+                            const result = await res.json()
+                            if (result.ok) {
+                              setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: `✅ ${file.name} sauvé (${result.seeds} seeds)`, ok: true } }))
+                              // Reload seed data for individual buttons
+                              setSeedFileData(data)
+                            } else {
+                              setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: result.error, ok: false } }))
+                            }
+                          } catch (err: any) {
+                            setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: err.message, ok: false } }))
+                          }
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
+                    <button style={{
+                      padding: '4px 12px', borderRadius: 4, border: '1px solid #d1d5db', cursor: 'pointer',
+                      fontSize: 12, backgroundColor: '#fff', color: '#374151',
+                    }}
+                      onClick={async () => {
+                        setSeedStatus(prev => ({ ...prev, _upload: { sending: true } }))
+                        try {
+                          const res = await fetch(ep.setupJson.replace('setup-json', 'seed-file'))
+                          const data = await res.json()
+                          if (data.exists) {
+                            setSeedFileData(data.data)
+                            setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: `✅ ${data.seedFile} charge (${data.summary.seeds} seeds)`, ok: true } }))
+                          } else {
+                            setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: 'Aucun fichier seed trouve', ok: false } }))
+                          }
+                        } catch (err: any) {
+                          setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: err.message, ok: false } }))
+                        }
+                      }}
+                    >
+                      Charger depuis serveur
+                    </button>
+                    {seedStatus._upload?.result && (
+                      <span style={{ fontSize: 11, color: seedStatus._upload.ok ? '#059669' : '#dc2626' }}>
+                        {seedStatus._upload.result}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {availableSeeds.map(seed => (
                   <div key={seed.key} style={{ ...S.checkRow, alignItems: 'center' }}>
                     <input type="checkbox" style={S.checkbox}
@@ -1768,7 +1836,7 @@ export default function SetupWizard({
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{seed.label}</div>
                       <div style={{ fontSize: 12, color: '#9ca3af' }}>{seed.description}</div>
                     </div>
-                    {setupMode === 'net' && (
+                    {setupMode === 'net' && seedFileData && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <button
                           style={{
@@ -1782,33 +1850,20 @@ export default function SetupWizard({
                           onClick={async () => {
                             setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: true } }))
                             try {
-                              // Fetch the full seed definition from setup.json
-                              const sjRes = await fetch(ep.setupJson)
-                              const sjData = await sjRes.json()
-                              const setupJson = sjData.config ? sjData : null
-                              // Find the seed in the raw setup.json
-                              const rawRes = await fetch('/setup.json')
-                              const rawJson = await rawRes.json()
-                              const seedDef = (rawJson.seeds || []).find((s: any) => s.key === seed.key)
+                              const seedDef = (seedFileData.seeds || []).find((s: any) => s.key === seed.key)
                               if (!seedDef) {
-                                setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: 'Seed non trouve dans setup.json', ok: false } }))
+                                setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: 'Seed "' + seed.key + '" non trouve dans le fichier', ok: false } }))
                                 return
                               }
-                              // Send as seed-file format with just this one seed
                               const payload: any = { seeds: [seedDef] }
-                              // Include RBAC if this is the first seed (roles/permissions needed)
-                              if (rawJson.rbac) payload.rbac = rawJson.rbac
+                              if (seedFileData.rbac) payload.rbac = seedFileData.rbac
                               const res = await fetch(netUrl + '/api/seed-file', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(payload),
                               })
                               const data = await res.json()
-                              if (data.ok) {
-                                setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: data.message, ok: true } }))
-                              } else {
-                                setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: data.error || 'Erreur', ok: false } }))
-                              }
+                              setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: data.ok ? data.message : (data.error || 'Erreur'), ok: data.ok } }))
                             } catch (err: any) {
                               setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: err.message, ok: false } }))
                             }
@@ -1817,7 +1872,7 @@ export default function SetupWizard({
                           {seedStatus[seed.key]?.sending ? '...' : seedStatus[seed.key]?.ok ? '✓' : 'Envoyer'}
                         </button>
                         {seedStatus[seed.key]?.result && (
-                          <span style={{ fontSize: 11, color: seedStatus[seed.key]?.ok ? '#059669' : '#dc2626' }}>
+                          <span style={{ fontSize: 11, color: seedStatus[seed.key]?.ok ? '#059669' : '#dc2626', maxWidth: 200, display: 'inline-block' }}>
                             {seedStatus[seed.key]?.result}
                           </span>
                         )}
