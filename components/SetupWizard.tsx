@@ -1855,7 +1855,21 @@ export default function SetupWizard({
                                 setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: 'Seed "' + seed.key + '" non trouve dans le fichier', ok: false } }))
                                 return
                               }
-                              const payload: any = { seeds: [seedDef] }
+                              // Clone seed def and inject wizard admin if this is a user seed
+                              const seedToSend = { ...seedDef, data: [...(seedDef.data || [])] }
+                              if (seedDef.collection === 'user' && adminConfig.email) {
+                                const adminExists = seedToSend.data.some((u: any) => u.email === adminConfig.email)
+                                if (!adminExists) {
+                                  seedToSend.data.unshift({
+                                    email: adminConfig.email,
+                                    password: adminConfig.password,
+                                    firstName: adminConfig.firstName,
+                                    lastName: adminConfig.lastName || '',
+                                    role: 'admin',
+                                  })
+                                }
+                              }
+                              const payload: any = { seeds: [seedToSend] }
                               if (seedFileData.rbac) payload.rbac = seedFileData.rbac
                               const res = await fetch(netUrl + '/api/seed-file', {
                                 method: 'POST',
