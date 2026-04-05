@@ -651,7 +651,14 @@ export default function SetupWizard({
     if (!hydrated) return
     fetch(ep.setupJson)
       .then(r => r.json())
-      .then((data: { exists: boolean; config?: { seeds?: { key: string; label: string; description: string; icon?: string; default: boolean }[]; modules?: any[] } }) => {
+      .then((data: { exists: boolean; env?: { netUrl?: string; netTransport?: string; dataMode?: string }; config?: { seeds?: { key: string; label: string; description: string; icon?: string; default: boolean }[]; modules?: any[] } }) => {
+        // Pre-fill NET URL from server env if not already set by props
+        if (data.env?.netUrl && netUrl === 'http://localhost:4488') {
+          setNetUrl(data.env.netUrl)
+        }
+        if (data.env?.netTransport && netTransport === 'rest') {
+          setNetTransport(data.env.netTransport as any)
+        }
         const seeds = data.config?.seeds ?? []
         setAvailableSeeds(seeds)
         // Initialize seedOptions from defaults
