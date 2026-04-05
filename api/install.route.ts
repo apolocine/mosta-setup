@@ -18,8 +18,9 @@ export function createInstallHandler(
   async function POST(req: Request) {
     const body: InstallConfig = await req.json()
 
-    // Skip needsSetup check if admin was already created (wizard creates admin before seed)
-    if (!(body as any).skipCheck && !(await needsSetup())) {
+    // In NET mode, skip needsSetup check — the admin may already exist from dashboard seed
+    // or from a previous partial install. The wizard controls the flow.
+    if (body.mode !== 'net' && !(body as any).skipCheck && !(await needsSetup())) {
       return Response.json({ ok: false, error: 'Installation deja effectuee' }, { status: 400 })
     }
 
