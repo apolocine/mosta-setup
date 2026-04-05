@@ -21,8 +21,14 @@ export function createSetupJsonHandler(needsSetup: NeedsSetupFn) {
 
   async function GET() {
     const filePath = setupJsonPath()
+    // Always include env vars for NET config
+    const env = {
+      netUrl: process.env.MOSTA_NET_URL || '',
+      netTransport: process.env.MOSTA_NET_TRANSPORT || 'rest',
+      dataMode: process.env.MOSTA_DATA || '',
+    }
     if (!fs.existsSync(filePath)) {
-      return Response.json({ exists: false })
+      return Response.json({ exists: false, env })
     }
     try {
       const raw = fs.readFileSync(filePath, 'utf-8')
@@ -43,6 +49,7 @@ export function createSetupJsonHandler(needsSetup: NeedsSetupFn) {
           })),
           modules: (json as unknown as Record<string, unknown>).modules ?? [],
         },
+        env,
       })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Invalid JSON'
