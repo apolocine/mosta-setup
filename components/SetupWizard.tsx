@@ -66,6 +66,10 @@ export interface SetupWizardProps {
   }
   /** Default database name prefix (e.g. 'secuaccessdb') */
   dbNamePrefix?: string
+  /** Initial NET server URL (read from .env.local MOSTA_NET_URL) */
+  initialNetUrl?: string
+  /** Initial NET transport (read from .env.local MOSTA_NET_TRANSPORT) */
+  initialNetTransport?: 'rest' | 'graphql' | 'jsonrpc' | 'ws'
   /** Whether to persist wizard state in sessionStorage (default: true) */
   persistState?: boolean
   /**
@@ -546,6 +550,8 @@ export default function SetupWizard({
   persistState = true,
   showModules = true,
   declaredModules,
+  initialNetUrl,
+  initialNetTransport,
 }: SetupWizardProps) {
   const t = tProp || ((k: string) => k)
 
@@ -564,8 +570,8 @@ export default function SetupWizard({
 
   // --- State ---
   const [setupMode, setSetupMode] = useState<'orm' | 'net'>('orm')
-  const [netUrl, setNetUrl] = useState('http://localhost:4488')
-  const [netTransport, setNetTransport] = useState<'rest' | 'graphql' | 'jsonrpc' | 'ws'>('rest')
+  const [netUrl, setNetUrl] = useState(initialNetUrl || 'http://localhost:4488')
+  const [netTransport, setNetTransport] = useState<'rest' | 'graphql' | 'jsonrpc' | 'ws'>(initialNetTransport || 'rest')
   const [netApiKey, setNetApiKey] = useState('')
   const [netTestResult, setNetTestResult] = useState<{ ok: boolean; entities?: string[]; transports?: string[]; error?: string } | null>(null)
   const [netTesting, setNetTesting] = useState(false)
