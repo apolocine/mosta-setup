@@ -196,7 +196,7 @@ function buildConfig(json: SetupJson, repoFactory?: (collection: string) => Prom
         const roleRepo = await getRepo('role')
         const allPermIds = Object.values(permissionMap)
 
-        for (const roleDef of json.rbac!.roles!.filter(r => r.name)) {
+        for (const roleDef of json.rbac!.roles!.filter(r => r.name && r.name.trim() !== '')) {
           const permissionIds = roleDef.permissions.includes('*')
             ? allPermIds
             : roleDef.permissions.map(code => permissionMap[code]).filter(Boolean)
