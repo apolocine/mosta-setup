@@ -1,6 +1,6 @@
 {
   "name": "@mostajs/setup",
-  "version": "2.1.27",
+  "version": "2.2.0",
   "description": "Reusable setup wizard module — multi-dialect DB configuration, .env.local writer, seed runner",
   "author": "Dr Hamid MADANI <drmdh@msn.com>",
   "license": "MIT",
@@ -17,6 +17,16 @@
       "types": "./dist/lib/*.d.ts",
       "import": "./dist/lib/*.js",
       "default": "./dist/lib/*.js"
+    },
+    "./lib/cloud-mode": {
+      "types": "./dist/lib/cloud-mode.d.ts",
+      "import": "./dist/lib/cloud-mode.js",
+      "default": "./dist/lib/cloud-mode.js"
+    },
+    "./lib/cloud-modules-discovery": {
+      "types": "./dist/lib/cloud-modules-discovery.d.ts",
+      "import": "./dist/lib/cloud-modules-discovery.js",
+      "default": "./dist/lib/cloud-modules-discovery.js"
     },
     "./data/*": {
       "types": "./dist/data/*.d.ts",
@@ -101,11 +111,13 @@
   },
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test:cloud": "tsx test-scripts/test-cloud.ts"
   },
   "dependencies": {
     "@mostajs/audit": "^2.0.2",
     "@mostajs/net": "^2.0.0",
+    "@mostajs/octoswitcher": "^1.0.0",
     "@mostajs/orm": "^1.7.0",
     "@mostajs/rbac": "^2.0.3",
     "@mostajs/settings": "^2.0.3",

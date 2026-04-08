@@ -79,9 +79,34 @@ export async function runInstall(
     delete process.env.MOSTA_NET_URL
     delete process.env.MOSTA_NET_TRANSPORT
 
-    // 4. Disconnect existing dialect singleton
-    const { disconnectDialect } = await import('@mostajs/orm')
-    await disconnectDialect()
+    // 4. Create a fresh dialect connection with the new env vars
+    // We use createConnection (not getDialect singleton) to avoid module bundling issues
+    const { disconnectDialect, createConnection, registerSchemas, getAllSchemas } = await import('@mostajs/orm')
+    try { await disconnectDialect() } catch {}
+    try { const { resetDialect } = await import('@mostajs/octoswitcher'); resetDialect() } catch {}
+    try { const { resetRbacRepos } = await import('@mostajs/rbac/lib/repos-factory'); resetRbacRepos() } catch {}
+    // Connect with new env vars and init all registered schemas
+    console.log('[Setup] createConnection:', installConfig.dialect, uri, 'schemas:', getAllSchemas().length)
+    const freshDialect = await createConnection({
+      dialect: installConfig.dialect as any,
+      uri,
+      schemaStrategy: 'update',
+    }, getAllSchemas())
+    console.log('[Setup] Connected:', freshDialect.dialectType, 'testConnection:', await freshDialect.testConnection())
+
+    // Verify ORM singleton is the connected one
+    const { getDialect: ormGetDialect } = await import('@mostajs/orm')
+    const ormDialect = await ormGetDialect()
+    console.log('[Setup] ORM singleton:', ormDialect.dialectType, 'same?', ormDialect === freshDialect)
+
+    // Verify octoswitcher
+    try {
+      const { getDialect: octoGetDialect } = await import('@mostajs/octoswitcher')
+      const octoDialect = await octoGetDialect()
+      console.log('[Setup] Octoswitcher:', octoDialect.dialectType, 'same as ORM?', (octoDialect as any) === (ormDialect as any))
+    } catch (err: any) {
+      console.log('[Setup] Octoswitcher error:', err.message)
+    }
 
     const seeded: string[] = []
 
@@ -137,7 +162,8 @@ export async function runInstall(
       seeded.push('admin')
     }
 
-    // 6. Optional seeds from setup.json (app-specific: activities, clients, plans)
+    // 6. Optional seeds from setup.json
+    // octoswitcher v1.0.1+ uses globalThis — singleton shared across all bundled modules
     if (setupConfig.optionalSeeds && installConfig.seed) {
       for (const seedDef of setupConfig.optionalSeeds) {
         if (installConfig.seed[seedDef.key]) {
@@ -196,14 +222,16 @@ async function runNetInstall(
 
     const seeded: string[] = []
 
-    // 2. Verify NET server is reachable (retry up to 10s if just restarted)
+    // 2. Verify NET server is reachable (retry with backoff, max 20s)
     let health: any = null
-    for (let i = 0; i < 10; i++) {
+    let retryDelay = 500
+    for (let i = 0; i < 15; i++) {
       try {
         health = await net.health()
         if (health.entities?.length > 0) break
       } catch {}
-      await new Promise(r => setTimeout(r, 1000))
+      await new Promise(r => setTimeout(r, retryDelay))
+      retryDelay = Math.min(retryDelay * 1.5, 3000)
     }
     if (!health) {
       return { ok: false, error: 'Serveur NET non joignable', needsRestart: false }
@@ -247,8 +275,23 @@ async function runNetInstall(
             // Si le serveur redémarre, attendre qu'il soit de retour
             if (result.needsRestart) {
               console.log('[Setup] Serveur NET redémarre pour charger les schemas...')
-              await new Promise(r => setTimeout(r, 4000)) // Laisser le temps au process.exit + restart
-              // Poll health jusqu'à ce que le serveur soit de retour (max 30s)
+              // Phase 1 : attendre que le serveur soit DOWN (max 10s)
+              let serverDown = false
+              for (let i = 0; i < 20; i++) {
+                try {
+                  await net.health()
+                  // Encore up — attendre
+                } catch {
+                  serverDown = true
+                  break
+                }
+                await new Promise(r => setTimeout(r, 500))
+              }
+              if (!serverDown) {
+                console.log('[Setup] Serveur n\'a pas redémarré — continue quand même')
+              }
+              // Phase 2 : attendre que le serveur soit UP avec schemas (max 60s, backoff)
+              let backoff = 500
               for (let i = 0; i < 30; i++) {
                 try {
                   const h = await net.health()
@@ -257,7 +300,8 @@ async function runNetInstall(
                     break
                   }
                 } catch {}
-                await new Promise(r => setTimeout(r, 1000))
+                await new Promise(r => setTimeout(r, backoff))
+                backoff = Math.min(backoff * 1.5, 3000) // backoff: 500→750→1125→...→3000ms max
               }
               // Recharger la collection map
               await net.loadCollectionMap()
