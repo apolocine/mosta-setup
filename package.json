@@ -1,6 +1,6 @@
 {
   "name": "@mostajs/setup",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Reusable setup wizard module — multi-dialect DB configuration, .env.local writer, seed runner",
   "author": "Dr Hamid MADANI <drmdh@msn.com>",
   "license": "MIT",
@@ -146,5 +146,9 @@
     "react": {
       "optional": true
     }
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/apolocine"
   }
 }
