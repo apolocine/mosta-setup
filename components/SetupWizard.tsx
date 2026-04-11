@@ -39,9 +39,7 @@ interface AdminConfig {
 }
 
 interface SeedOptions {
-  activities: boolean
-  demoUsers: boolean
-  demoData: boolean
+  [key: string]: boolean
 }
 
 export interface SetupWizardProps {
@@ -57,17 +55,43 @@ export interface SetupWizardProps {
     install?: string
     uploadJar?: string
     wireModule?: string
+    /** Seed endpoint — runs module seeds from the runtime registry */
+    seed?: string
+    /** Preflight checks endpoint */
+    preflight?: string
+    /** Create database endpoint */
+    createDb?: string
+    /** Setup JSON endpoint (GET returns seeds list) */
+    setupJson?: string
   }
   /** Default database name prefix (e.g. 'secuaccessdb') */
   dbNamePrefix?: string
+  /** Initial NET server URL (read from .env.local MOSTA_NET_URL) */
+  initialNetUrl?: string
+  /** Initial NET transport (read from .env.local MOSTA_NET_TRANSPORT) */
+  initialNetTransport?: 'rest' | 'graphql' | 'jsonrpc' | 'ws'
   /** Whether to persist wizard state in sessionStorage (default: true) */
   persistState?: boolean
+  /**
+   * Show the modules selection step even without a detectModules endpoint.
+   * When true and no detectModules endpoint, uses the built-in module list.
+   * Default: true
+   */
+  showModules?: boolean
+  /**
+   * Full module definitions from setup.json (section "modules").
+   * When provided, the wizard shows these modules directly
+   * instead of calling the detectModules endpoint.
+   */
+  declaredModules?: { key: string; packageName?: string; label?: string; description?: string; icon?: string; required?: boolean; dependsOn?: string[] }[]
 }
 
 // ── Constants ────────────────────────────────────────────────
 
-const STEPS = ['welcome', 'modules', 'dialect', 'database', 'admin', 'summary'] as const
-type Step = typeof STEPS[number]
+const ORM_STEPS = ['welcome', 'modules', 'dialect', 'database', 'admin', 'summary'] as const
+const NET_STEPS = ['welcome', 'modules', 'net-config', 'admin', 'summary'] as const
+const ALL_STEPS = ['welcome', 'modules', 'dialect', 'database', 'net-config', 'admin', 'summary'] as const
+type Step = typeof ALL_STEPS[number]
 
 const DIALECT_DEFAULTS: Record<Dialect, DbConfig> = {
   mongodb:     { host: 'localhost', port: 27017, name: 'mydb_prod',   user: '',         password: '' },
@@ -75,7 +99,7 @@ const DIALECT_DEFAULTS: Record<Dialect, DbConfig> = {
   postgres:    { host: 'localhost', port: 5432,  name: 'mydb',        user: 'postgres', password: '' },
   mysql:       { host: 'localhost', port: 3306,  name: 'mydb',        user: 'root',     password: '' },
   mariadb:     { host: 'localhost', port: 3306,  name: 'mydb',        user: 'root',     password: '' },
-  oracle:      { host: 'localhost', port: 1521,  name: 'mydb',        user: 'system',   password: '' },
+  oracle:      { host: 'localhost', port: 1521,  name: 'XEPDB1',      user: 'system',   password: '' },
   mssql:       { host: 'localhost', port: 1433,  name: 'mydb',        user: 'sa',       password: '' },
   cockroachdb: { host: 'localhost', port: 26257, name: 'mydb',        user: 'root',     password: '' },
   db2:         { host: 'localhost', port: 50000, name: 'mydb',        user: 'db2inst1', password: '' },
@@ -92,7 +116,7 @@ const DIALECT_INFO: { key: Dialect; name: string; icon: string; premium?: boolea
   { key: 'mysql',       name: 'MySQL',          icon: '🐬' },
   { key: 'mariadb',     name: 'MariaDB',        icon: '🦭' },
   { key: 'mssql',       name: 'SQL Server',     icon: '🟦' },
-  { key: 'oracle',      name: 'Oracle',         icon: '🔴', premium: true, jdbc: true },
+  { key: 'oracle',      name: 'Oracle',         icon: '🔴' },
   { key: 'cockroachdb', name: 'CockroachDB',    icon: '🪳' },
   { key: 'db2',         name: 'IBM DB2',        icon: '🏢', premium: true, jdbc: true },
   { key: 'hana',        name: 'SAP HANA',       icon: '💎', premium: true, jdbc: true },
@@ -101,7 +125,7 @@ const DIALECT_INFO: { key: Dialect; name: string; icon: string; premium?: boolea
   { key: 'sybase',      name: 'Sybase ASE',     icon: '🔷', premium: true, jdbc: true },
 ]
 
-const JDBC_DIALECTS: Dialect[] = ['hsqldb', 'oracle', 'db2', 'hana', 'sybase']
+const JDBC_DIALECTS: Dialect[] = ['hsqldb', 'db2', 'hana', 'sybase']
 
 const DRIVER_HINTS: Record<Dialect, string> = {
   mongodb:     'npm install mongoose',
@@ -524,26 +548,47 @@ export default function SetupWizard({
   endpoints = {},
   dbNamePrefix = 'mydb',
   persistState = true,
+  showModules = true,
+  declaredModules,
+  initialNetUrl,
+  initialNetTransport,
 }: SetupWizardProps) {
   const t = tProp || ((k: string) => k)
 
   const ep = {
-    detectModules: endpoints.detectModules || '/api/setup/detect-modules',
+    detectModules: endpoints.detectModules || '',
     testDb: endpoints.testDb || '/api/setup/test-db',
-    installModules: endpoints.installModules || '/api/setup/install-modules',
+    installModules: endpoints.installModules || '',
     install: endpoints.install || '/api/setup/install',
     uploadJar: endpoints.uploadJar || '/api/setup/upload-jar',
-    wireModule: endpoints.wireModule || '/api/setup/wire-module',
+    wireModule: endpoints.wireModule || '',
+    seed: endpoints.seed || '',
+    preflight: endpoints.preflight || '/api/setup/preflight',
+    createDb: endpoints.createDb || '/api/setup/create-db',
+    setupJson: endpoints.setupJson || '/api/setup/setup-json',
   }
 
   // --- State ---
+  const [setupMode, setSetupMode] = useState<'orm' | 'net'>('orm')
+  const [netUrl, setNetUrl] = useState(initialNetUrl || 'http://localhost:4488')
+  const [netTransport, setNetTransport] = useState<'rest' | 'graphql' | 'jsonrpc' | 'ws'>(initialNetTransport || 'rest')
+  const [netApiKey, setNetApiKey] = useState('')
+  const [netTestResult, setNetTestResult] = useState<{ ok: boolean; entities?: string[]; transports?: string[]; error?: string } | null>(null)
+  const [netTesting, setNetTesting] = useState(false)
+  const [schemaUploadStatus, setSchemaUploadStatus] = useState<{ phase: string; color: string } | null>(null)
+  const [schemasReady, setSchemasReady] = useState(false)
+  const [adminSaving, setAdminSaving] = useState(false)
+  const [adminSaveResult, setAdminSaveResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [dialect, setDialect] = useState<Dialect>('mongodb')
   const [dbConfig, setDbConfig] = useState<DbConfig>({ ...DIALECT_DEFAULTS.mongodb, name: `${dbNamePrefix}_prod` })
   const [dbTestResult, setDbTestResult] = useState<{ ok: boolean; error?: string; dbVersion?: string } | null>(null)
   const [dbTesting, setDbTesting] = useState(false)
   const [adminConfig, setAdminConfig] = useState<AdminConfig>({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' })
-  const [seedOptions, setSeedOptions] = useState<SeedOptions>({ activities: true, demoUsers: false, demoData: false })
+  const [seedOptions, setSeedOptions] = useState<SeedOptions>({})
+  const [availableSeeds, setAvailableSeeds] = useState<{ key: string; label: string; description: string; icon?: string; default: boolean }[]>([])
+  const [seedStatus, setSeedStatus] = useState<Record<string, { sending: boolean; result?: string; ok?: boolean }>>({})
+  const [seedFileData, setSeedFileData] = useState<any>(null)
   const [availableModules, setAvailableModules] = useState<ModuleDefinition[]>([])
   const [selectedModules, setSelectedModules] = useState<string[]>([])
   const [detectedModules, setDetectedModules] = useState<string[]>([])
@@ -559,6 +604,22 @@ export default function SetupWizard({
   const [wireLoading, setWireLoading] = useState(false)
   const [wireBusy, setWireBusy] = useState<string | null>(null)
   const [wireMessage, setWireMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Preflight checks
+  interface PreflightCheck { key: string; label: string; status: 'ok' | 'warn' | 'fail'; detail: string }
+  const [preflightChecks, setPreflightChecks] = useState<PreflightCheck[]>([])
+  const [preflightLoading, setPreflightLoading] = useState(false)
+
+  // Create DB
+  const [creatingDb, setCreatingDb] = useState(false)
+  const [createDbResult, setCreateDbResult] = useState<{ ok: boolean; detail?: string; error?: string } | null>(null)
+
+  // Steps depend on setup mode (ORM direct vs NET remote)
+  const hasModulesStep = showModules !== false
+  const baseSteps = setupMode === 'net' ? NET_STEPS : ORM_STEPS
+  const STEPS = hasModulesStep
+    ? baseSteps
+    : baseSteps.filter(s => s !== 'modules')
 
   const step: Step = STEPS[currentStep]
 
@@ -587,24 +648,137 @@ export default function SetupWizard({
     } catch {}
   }, [hydrated, persistState, currentStep, dialect, dbConfig, adminConfig, seedOptions, selectedModules])
 
+  // --- Load seeds from setup.json ---
+  useEffect(() => {
+    if (!hydrated) return
+    fetch(ep.setupJson)
+      .then(r => r.json())
+      .then((data: { exists: boolean; env?: { netUrl?: string; netTransport?: string; dataMode?: string }; config?: { seeds?: { key: string; label: string; description: string; icon?: string; default: boolean }[]; modules?: any[] } }) => {
+        // Pre-fill NET URL from server env if not already set by props
+        if (data.env?.netUrl && netUrl === 'http://localhost:4488') {
+          setNetUrl(data.env.netUrl)
+        }
+        if (data.env?.netTransport && netTransport === 'rest') {
+          setNetTransport(data.env.netTransport as any)
+        }
+        const seeds = data.config?.seeds ?? []
+        setAvailableSeeds(seeds)
+        // Initialize seedOptions from defaults
+        setSeedOptions(prev => {
+          const defaults: SeedOptions = {}
+          for (const s of seeds) defaults[s.key] = prev[s.key] ?? s.default
+          return defaults
+        })
+        // Load modules from setup.json if not provided via props
+        const mods = data.config?.modules ?? []
+        if (mods.length > 0 && availableModules.length === 0) {
+          setAvailableModules(mods.map((m: any) => ({
+            key: m.key, packageName: m.packageName || m.key,
+            label: m.label || m.key, description: m.description || '',
+            icon: m.icon || '', required: m.required || false,
+            dependsOn: m.dependsOn || [], installed: false,
+          })))
+          // Pre-select required modules
+          setSelectedModules(prev => {
+            if (prev.length > 0) return prev
+            return mods.filter((m: any) => m.required || m.default).map((m: any) => m.key)
+          })
+        }
+      })
+      .catch(() => {})
+  }, [hydrated])
+
   // --- Detect modules ---
   useEffect(() => {
-    fetch(ep.detectModules)
-      .then(r => r.json())
-      .then((data: { modules: ModuleDefinition[]; installed: string[] }) => {
-        if (data.modules) setAvailableModules(data.modules)
-        if (data.installed) setDetectedModules(data.installed)
-        if (selectedModules.length === 0) {
-          const mods = data.modules || []
-          const pre = new Set([
-            ...mods.filter(m => m.required || m.default).map(m => m.key),
-            ...(data.installed || []),
-          ])
-          setSelectedModules(Array.from(pre))
-        }
-        setModulesDetected(true)
-      })
-      .catch(() => setModulesDetected(true))
+    const declaredKeys = new Set((declaredModules ?? []).map(m => m.key))
+
+    // If API endpoint available → fetch full catalog, enrich with declared info
+    if (ep.detectModules) {
+      fetch(ep.detectModules)
+        .then(r => r.json())
+        .then((data: { modules: ModuleDefinition[]; installed: string[] }) => {
+          const apiModules = data.modules || []
+          if (data.installed) setDetectedModules(data.installed)
+
+          // Merge: API modules as base, enrich with setup.json overrides
+          if (declaredModules && declaredModules.length > 0) {
+            const apiByKey = new Map(apiModules.map(m => [m.key, m]))
+            // Enrich API modules with declared metadata
+            for (const dm of declaredModules) {
+              const existing = apiByKey.get(dm.key)
+              if (existing) {
+                if (dm.label) existing.label = dm.label
+                if (dm.description) existing.description = dm.description
+                if (dm.icon) existing.icon = dm.icon
+              } else {
+                // Module declared in setup.json but not in API catalog — add it
+                apiModules.push({
+                  key: dm.key,
+                  label: dm.label ?? dm.key,
+                  description: dm.description ?? '',
+                  icon: dm.icon ?? '📦',
+                  required: dm.required,
+                  default: true,
+                  dependsOn: dm.dependsOn,
+                })
+              }
+            }
+            setAvailableModules(apiModules)
+            // Pre-select: declared modules + required
+            const pre = new Set([
+              ...declaredKeys,
+              ...apiModules.filter(m => m.required).map(m => m.key),
+            ])
+            setSelectedModules(Array.from(pre))
+          } else {
+            setAvailableModules(apiModules)
+            if (selectedModules.length === 0) {
+              const pre = new Set([
+                ...apiModules.filter(m => m.required || m.default).map(m => m.key),
+                ...(data.installed || []),
+              ])
+              setSelectedModules(Array.from(pre))
+            }
+          }
+          setModulesDetected(true)
+        })
+        .catch(() => {
+          // API failed — fallback to declared modules only
+          if (declaredModules && declaredModules.length > 0) {
+            setAvailableModules(declaredModules.map(m => ({
+              key: m.key,
+              label: m.label ?? m.key,
+              description: m.description ?? '',
+              icon: m.icon ?? '📦',
+              required: m.required,
+              default: true,
+              dependsOn: m.dependsOn,
+            })))
+            setSelectedModules(Array.from(declaredKeys))
+          }
+          setModulesDetected(true)
+        })
+      return
+    }
+
+    // No API endpoint — use declared modules only (if any)
+    if (declaredModules && declaredModules.length > 0) {
+      setAvailableModules(declaredModules.map(m => ({
+        key: m.key,
+        label: m.label ?? m.key,
+        description: m.description ?? '',
+        icon: m.icon ?? '📦',
+        required: m.required,
+        default: true,
+        dependsOn: m.dependsOn,
+      })))
+      setSelectedModules(Array.from(declaredKeys))
+      setModulesDetected(true)
+      return
+    }
+
+    // No endpoint, no declared modules → skip
+    setModulesDetected(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -632,8 +806,9 @@ export default function SetupWizard({
     })
   }, [availableModules])
 
-  // --- Wire modules (load after installation success) ---
+  // --- Wire modules (load after installation success, only if endpoint provided) ---
   const loadWireModules = useCallback(async () => {
+    if (!ep.wireModule) return
     setWireLoading(true)
     try {
       const res = await fetch(ep.wireModule)
@@ -689,6 +864,48 @@ export default function SetupWizard({
     setDbTestResult(null)
   }
 
+  // --- Preflight checks ---
+  async function runPreflight() {
+    setPreflightLoading(true)
+    try {
+      const res = await fetch(ep.preflight)
+      const data = await res.json()
+      setPreflightChecks(data.checks || [])
+    } catch {
+      setPreflightChecks([{ key: 'error', label: 'Preflight', status: 'fail', detail: 'Erreur réseau' }])
+    }
+    setPreflightLoading(false)
+  }
+
+  // Auto-run preflight on welcome step
+  useEffect(() => {
+    if (step === 'welcome' && preflightChecks.length === 0) {
+      runPreflight()
+    }
+  }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- Create Database ---
+  async function createDatabase() {
+    setCreatingDb(true)
+    setCreateDbResult(null)
+    try {
+      const res = await fetch(ep.createDb, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dialect, ...dbConfig }),
+      })
+      const data = await res.json()
+      setCreateDbResult(data)
+      if (data.ok) {
+        // Auto-run test after creation
+        setDbTestResult(null)
+      }
+    } catch (err: unknown) {
+      setCreateDbResult({ ok: false, error: err instanceof Error ? err.message : 'Erreur réseau' })
+    }
+    setCreatingDb(false)
+  }
+
   // --- Test DB ---
   async function testDb() {
     setDbTesting(true)
@@ -732,11 +949,14 @@ export default function SetupWizard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          mode: setupMode,
           dialect,
           db: dbConfig,
+          ...(setupMode === 'net' ? { net: { url: netUrl, transport: netTransport, apiKey: netApiKey || undefined } } : {}),
           admin: { email: adminConfig.email, password: adminConfig.password, firstName: adminConfig.firstName, lastName: adminConfig.lastName },
           seed: seedOptions,
           modules: selectedModules,
+          skipCheck: adminSaveResult?.ok || false,  // Skip needsSetup check if admin was created via wizard
         }),
       })
       const data = await safeJson(res)
@@ -755,16 +975,20 @@ export default function SetupWizard({
   function canGoNext(): boolean {
     switch (step) {
       case 'welcome': return true
-      case 'modules': return selectedModules.length > 0
+      case 'modules': return availableModules.length === 0 || selectedModules.length > 0
       case 'dialect': return true
       case 'database':
         if (dialect === 'sqlite' || dialect === 'spanner') return dbConfig.name.trim() !== ''
         return dbTestResult?.ok === true
+      case 'net-config':
+        // OK si serveur connecté ET (schemas déjà chargés OU uploadés)
+        return netTestResult?.ok === true && ((netTestResult.entities?.length ?? 0) > 0 || schemasReady)
       case 'admin':
         return adminConfig.firstName.trim() !== '' && adminConfig.lastName.trim() !== '' &&
           adminConfig.email.trim() !== '' && adminConfig.password.length >= 6 &&
           adminConfig.password === adminConfig.confirmPassword
       case 'summary': return false
+      default: return false
     }
   }
 
@@ -772,6 +996,7 @@ export default function SetupWizard({
   function goBack() { if (currentStep > 0) setCurrentStep(currentStep - 1) }
 
   function dbSummaryLabel(): string {
+    if (setupMode === 'net') return `@mostajs/net — ${netUrl}`
     if (dialect === 'sqlite') return `SQLite — ./data/${dbConfig.name}.db`
     if (dialect === 'spanner') return `Cloud Spanner — ${dbConfig.name}`
     const info = DIALECT_INFO.find(d => d.key === dialect)
@@ -808,15 +1033,81 @@ export default function SetupWizard({
 
           {/* ─── Step 1: Welcome ─── */}
           {step === 'welcome' && (
-            <div style={S.center}>
-              <div style={{ width: 80, height: 80, borderRadius: '50%', backgroundColor: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 40 }}>
-                🛡️
+            <div>
+              <div style={S.center}>
+                <div style={{ width: 80, height: 80, borderRadius: '50%', backgroundColor: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 40 }}>
+                  🛡️
+                </div>
+                <h2 style={{ fontSize: 24, fontWeight: 700, color: '#111827', marginBottom: 8 }}>{t('setup.welcome.title')}</h2>
+                <p style={{ color: '#6b7280', marginBottom: 16 }}>{t('setup.welcome.description')}</p>
               </div>
-              <h2 style={{ fontSize: 24, fontWeight: 700, color: '#111827', marginBottom: 8 }}>{t('setup.welcome.title')}</h2>
-              <p style={{ color: '#6b7280', marginBottom: 24 }}>{t('setup.welcome.description')}</p>
-              <button style={S.btn('lg')} onClick={goNext}>
-                {t('setup.welcome.start')} →
-              </button>
+
+              {/* Mode selection: ORM direct vs NET remote */}
+              <div style={{ margin: '16px 0', padding: 16, backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 12 }}>Comment acceder aux donnees ?</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: setupMode === 'orm' ? '#dbeafe' : '#fff', border: '1px solid ' + (setupMode === 'orm' ? '#3b82f6' : '#e5e7eb'), borderRadius: 8, cursor: 'pointer' }}>
+                    <input type="radio" name="setupMode" checked={setupMode === 'orm'} onChange={() => setSetupMode('orm')} style={{ marginTop: 3 }} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>Acces direct (ORM)</div>
+                      <div style={{ fontSize: 12, color: '#6b7280' }}>L'application se connecte directement a la base de donnees (13 SGBD supportes)</div>
+                    </div>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: setupMode === 'net' ? '#dbeafe' : '#fff', border: '1px solid ' + (setupMode === 'net' ? '#3b82f6' : '#e5e7eb'), borderRadius: 8, cursor: 'pointer' }}>
+                    <input type="radio" name="setupMode" checked={setupMode === 'net'} onChange={() => setSetupMode('net')} style={{ marginTop: 3 }} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>Via @mostajs/net (reseau)</div>
+                      <div style={{ fontSize: 12, color: '#6b7280' }}>L'application communique avec un serveur @mostajs/net distant via REST, GraphQL, JSON-RPC ou WebSocket</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Preflight checks panel */}
+              <div style={{ margin: '16px 0 24px', padding: 16, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>🔍 {t('setup.welcome.checks')}</div>
+                  <button
+                    style={{ ...S.btn('outline'), fontSize: 12, padding: '4px 12px' }}
+                    onClick={runPreflight}
+                    disabled={preflightLoading}
+                  >
+                    {preflightLoading ? '⏳' : '🔄'} {t('setup.welcome.recheck')}
+                  </button>
+                </div>
+
+                {preflightLoading && preflightChecks.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 16, color: '#6b7280', fontSize: 13 }}>⏳ {t('setup.welcome.checking')}</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {preflightChecks.map(check => (
+                      <div key={check.key} style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                        backgroundColor: check.status === 'ok' ? '#f0fdf4' : check.status === 'warn' ? '#fffbeb' : '#fef2f2',
+                        border: `1px solid ${check.status === 'ok' ? '#bbf7d0' : check.status === 'warn' ? '#fde68a' : '#fecaca'}`,
+                        borderRadius: 6, fontSize: 13,
+                      }}>
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>
+                          {check.status === 'ok' ? '✅' : check.status === 'warn' ? '⚠️' : '❌'}
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: 600, color: '#111827' }}>{check.label}</span>
+                          <span style={{ color: '#6b7280', marginLeft: 8 }}>{check.detail}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={S.center}>
+                <button style={S.btn('lg')} onClick={goNext}>
+                  {setupMode === 'net' ? '🌐 Configurer via NET →' : '🗄️ Configurer la base de donnees →'}
+                </button>
+                <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 8 }}>
+                  Mode : <b>{setupMode === 'net' ? 'Serveur @mostajs/net' : 'Acces direct ORM'}</b> — {STEPS.length} etapes
+                </p>
+              </div>
             </div>
           )}
 
@@ -1063,15 +1354,36 @@ export default function SetupWizard({
                 <JarUploadInline dialect={dialect} jarEndpoint={ep.uploadJar} dbConfig={dbConfig} />
               )}
 
-              {/* Create DB if not exists */}
+              {/* Create DB if not exists + Create button */}
               {dialect !== 'sqlite' && dialect !== 'spanner' && (
-                <div style={{ ...S.checkRow, marginTop: 12, padding: '10px 14px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8 }}>
-                  <input type="checkbox" style={S.checkbox}
-                    checked={createIfNotExists}
-                    onChange={e => setCreateIfNotExists(e.target.checked)} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t('setup.database.createIfNotExists')}</div>
-                    <div style={{ fontSize: 12, color: '#92400e' }}>{t('setup.database.createIfNotExistsDesc')}</div>
+                <div style={{ marginTop: 12, padding: '12px 14px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8 }}>
+                  <div style={S.checkRow}>
+                    <input type="checkbox" style={S.checkbox}
+                      checked={createIfNotExists}
+                      onChange={e => setCreateIfNotExists(e.target.checked)} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{t('setup.database.createIfNotExists')}</div>
+                      <div style={{ fontSize: 12, color: '#92400e' }}>{t('setup.database.createIfNotExistsDesc')}</div>
+                    </div>
+                  </div>
+                  {/* Create Database button */}
+                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button
+                      style={{ ...S.btn('outline', creatingDb), fontSize: 12, padding: '6px 14px', backgroundColor: '#fef3c7' }}
+                      onClick={createDatabase}
+                      disabled={creatingDb || !dbConfig.name}
+                    >
+                      {creatingDb ? '⏳ ' : '🗃️ '}
+                      {creatingDb ? t('setup.database.creating') : t('setup.database.createDb')}
+                    </button>
+                    {createDbResult && (
+                      <span style={{ fontSize: 12, color: createDbResult.ok ? '#059669' : '#dc2626' }}>
+                        {createDbResult.ok
+                          ? `✅ ${createDbResult.detail || t('setup.database.createDbSuccess')}`
+                          : `❌ ${createDbResult.error}`
+                        }
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -1084,12 +1396,202 @@ export default function SetupWizard({
                     {dbTesting ? t('setup.database.testing') : t('setup.database.test')}
                   </button>
                   {dbTestResult && (
-                    <span style={{ fontSize: 13, color: dbTestResult.ok ? '#059669' : '#dc2626' }}>
-                      {dbTestResult.ok
-                        ? `✅ ${t('setup.database.success')}${dbTestResult.dbVersion ? ` (v${dbTestResult.dbVersion})` : ''}`
-                        : `❌ ${t('setup.database.error')}: ${dbTestResult.error}`
-                      }
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: dbTestResult.ok ? '#059669' : '#dc2626' }}>
+                        {dbTestResult.ok
+                          ? `✅ ${t('setup.database.success')}${dbTestResult.dbVersion ? ` (v${dbTestResult.dbVersion})` : ''}`
+                          : `❌ ${t('setup.database.error')}: ${dbTestResult.error}`
+                        }
+                      </span>
+                      {dbTestResult.ok && (
+                        <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontFamily: 'monospace', backgroundColor: '#f3f4f6', padding: '4px 8px', borderRadius: 4 }}>
+                          {dialect}://{dbConfig.user ? dbConfig.user + '@' : ''}{dbConfig.host}:{dbConfig.port}/{dbConfig.name}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={S.navRow}>
+                <button style={S.btn('outline')} onClick={goBack}>← {t('setup.back')}</button>
+                <button style={S.btn('primary', !canGoNext())} onClick={goNext} disabled={!canGoNext()}>{t('setup.next')} →</button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Step: NET Config ─── */}
+          {step === 'net-config' && (
+            <div>
+              <div style={S.sectionHeader}>
+                <h2 style={S.sectionTitle}>Serveur @mostajs/net</h2>
+                <p style={S.sectionDesc}>Configurez la connexion au serveur @mostajs/net distant</p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }}>URL du serveur</label>
+                  <input style={S.input} value={netUrl} onChange={e => { setNetUrl(e.target.value); setNetTestResult(null) }} placeholder="http://localhost:4488" />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }}>Transport</label>
+                    <select style={S.input} value={netTransport} onChange={e => setNetTransport(e.target.value as any)}>
+                      <option value="rest">REST</option>
+                      <option value="graphql">GraphQL</option>
+                      <option value="jsonrpc">JSON-RPC</option>
+                      <option value="ws">WebSocket</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 4, display: 'block' }}>API Key (optionnel)</label>
+                    <input style={S.input} value={netApiKey} onChange={e => setNetApiKey(e.target.value)} placeholder="msk_live_..." type="password" />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                style={{ ...S.btn('primary'), marginBottom: 16 }}
+                disabled={netTesting || !netUrl}
+                onClick={async () => {
+                  setNetTesting(true)
+                  setNetTestResult(null)
+                  try {
+                    const res = await fetch(ep.setupJson.replace('setup-json', 'net-test'), {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ url: netUrl, transport: netTransport }),
+                    })
+                    const data = await res.json()
+                    setNetTestResult(data)
+                  } catch (e: any) {
+                    setNetTestResult({ ok: false, error: e.message })
+                  }
+                  setNetTesting(false)
+                }}
+              >
+                {netTesting ? '⏳ Test en cours...' : '🔌 Tester la connexion'}
+              </button>
+
+              {netTestResult && (
+                <div style={{
+                  padding: 12, borderRadius: 8, marginBottom: 16,
+                  backgroundColor: netTestResult.ok ? '#f0fdf4' : '#fef2f2',
+                  border: `1px solid ${netTestResult.ok ? '#bbf7d0' : '#fecaca'}`,
+                }}>
+                  {netTestResult.ok ? (
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#166534', marginBottom: 4 }}>✅ Serveur connecte</div>
+                      {netTestResult.entities && (
+                        <div style={{ fontSize: 13, color: '#374151' }}>
+                          <strong>{netTestResult.entities.length}</strong> entites : {netTestResult.entities.join(', ')}
+                        </div>
+                      )}
+                      {netTestResult.transports && (
+                        <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
+                          Transports : {netTestResult.transports.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ color: '#991b1b' }}>
+                      ❌ {netTestResult.error || 'Connexion echouee'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ─── 3-step project setup (shown when server connected) ─── */}
+              {netTestResult?.ok && (
+                <div style={{ padding: 16, borderRadius: 8, marginBottom: 16, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+
+                  {/* Step 1: Upload schemas */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', minWidth: 65 }}>Etape 1:</span>
+                    <button style={{ ...S.btn('primary'), fontSize: 13 }}
+                      onClick={() => document.getElementById('schemaFileInput')?.click()}>
+                      Uploader schemas.json
+                    </button>
+                    <input id="schemaFileInput" type="file" accept=".json" style={{ display: 'none' }}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        setSchemaUploadStatus({ phase: 'Envoi...', color: '#2563eb' })
+                        try {
+                          const text = await file.text()
+                          const schemas = JSON.parse(text)
+                          const res = await fetch(netUrl + '/api/upload-schemas', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ schemas: Array.isArray(schemas) ? schemas : [schemas] }),
+                          })
+                          const data = await res.json()
+                          if (data.ok) {
+                            setSchemaUploadStatus({ phase: `✅ ${data.count} schemas uploades`, color: '#16a34a' })
+                            const h = await fetch(netUrl + '/health').then(r => r.json())
+                            if (h.entities) setNetTestResult({ ...netTestResult, entities: h.entities })
+                          } else {
+                            setSchemaUploadStatus({ phase: `❌ ${data.error}`, color: '#dc2626' })
+                          }
+                        } catch (err: any) {
+                          setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' })
+                        }
+                        e.target.value = ''
+                      }}
+                    />
+                    <span style={{ fontSize: 12, color: schemaUploadStatus?.color || '#94a3b8' }}>
+                      {schemaUploadStatus?.phase || ((netTestResult.entities?.length ?? 0) > 0 ? `✅ ${netTestResult.entities!.length} schemas` : 'Aucun schema')}
                     </span>
+                  </div>
+
+                  {/* Step 2: Save config */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', minWidth: 65 }}>Etape 2:</span>
+                    <button style={{ ...S.btn('primary'), fontSize: 13, backgroundColor: '#22c55e' }}
+                      disabled={(netTestResult.entities?.length ?? 0) === 0}
+                      onClick={async () => {
+                        setSchemaUploadStatus({ phase: 'Enregistrement...', color: '#2563eb' })
+                        try {
+                          const res = await fetch(netUrl + '/api/save-config', { method: 'POST' })
+                          const data = await res.json()
+                          if (data.ok) {
+                            setSchemaUploadStatus({ phase: '✅ Config enregistree', color: '#16a34a' })
+                            setSchemasReady(true)
+                          } else { setSchemaUploadStatus({ phase: `❌ ${data.error || data.message}`, color: '#dc2626' }) }
+                        } catch (err: any) { setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' }) }
+                      }}>
+                      Enregistrer la config
+                    </button>
+                  </div>
+
+                  {/* Step 3: Apply schema */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', minWidth: 65 }}>Etape 3:</span>
+                    <button style={{ ...S.btn('primary'), fontSize: 13, backgroundColor: '#f59e0b', color: '#000' }}
+                      disabled={(netTestResult.entities?.length ?? 0) === 0}
+                      onClick={async () => {
+                        setSchemaUploadStatus({ phase: 'Application du schema...', color: '#2563eb' })
+                        try {
+                          const res = await fetch(netUrl + '/api/apply-schema', { method: 'POST' })
+                          const data = await res.json()
+                          if (data.ok) {
+                            setSchemaUploadStatus({ phase: `✅ ${data.message || 'Schema applique'}`, color: '#16a34a' })
+                            setSchemasReady(true)
+                          } else if (data.needsCreateDb) {
+                            setSchemaUploadStatus({ phase: `⚠️ ${data.error} — creez la base depuis le dashboard OctoNet`, color: '#d97706' })
+                          } else {
+                            setSchemaUploadStatus({ phase: `❌ ${data.error || data.message}`, color: '#dc2626' })
+                          }
+                        } catch (err: any) { setSchemaUploadStatus({ phase: `❌ ${err.message}`, color: '#dc2626' }) }
+                      }}>
+                      Appliquer le schema
+                    </button>
+                  </div>
+
+                  {/* Status */}
+                  {schemaUploadStatus && (
+                    <div style={{ fontSize: 13, fontWeight: 500, color: schemaUploadStatus.color, marginTop: 4 }}>
+                      {schemaUploadStatus.phase}
+                    </div>
                   )}
                 </div>
               )}
@@ -1146,6 +1648,56 @@ export default function SetupWizard({
                 <p style={{ fontSize: 13, color: '#dc2626' }}>{t('setup.admin.passwordMismatch')}</p>
               )}
 
+              {/* Bouton Enregistrer l'admin (mode NET — envoie directement au serveur) */}
+              {setupMode === 'net' && (
+                <div style={{ marginTop: 16, marginBottom: 16 }}>
+                  <button
+                    style={{ ...S.btn('primary'), backgroundColor: '#16a34a' }}
+                    disabled={adminSaving || !adminConfig.email || !adminConfig.password || !adminConfig.firstName || adminConfig.password !== adminConfig.confirmPassword}
+                    onClick={async () => {
+                      setAdminSaving(true)
+                      setAdminSaveResult(null)
+                      try {
+                        // 1. Hash password côté serveur via un endpoint dédié, ou côté client
+                        // On envoie le mot de passe en clair — le serveur Next.js le hashera
+                        const res = await fetch(ep.setupJson.replace('setup-json', 'create-admin'), {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            url: netUrl,
+                            email: adminConfig.email,
+                            password: adminConfig.password,
+                            firstName: adminConfig.firstName,
+                            lastName: adminConfig.lastName,
+                          }),
+                        })
+                        const data = await res.json()
+                        if (data.ok) {
+                          setAdminSaveResult({ ok: true, message: `✅ Admin ${adminConfig.email} créé sur le serveur NET` })
+                        } else {
+                          setAdminSaveResult({ ok: false, message: `❌ ${data.error || 'Erreur'}` })
+                        }
+                      } catch (err: any) {
+                        setAdminSaveResult({ ok: false, message: `❌ ${err.message}` })
+                      }
+                      setAdminSaving(false)
+                    }}
+                  >
+                    {adminSaving ? '⏳ Enregistrement...' : '💾 Enregistrer l\'admin sur le serveur'}
+                  </button>
+                  {adminSaveResult && (
+                    <div style={{
+                      marginTop: 8, padding: 8, borderRadius: 6, fontSize: 13, fontWeight: 500,
+                      backgroundColor: adminSaveResult.ok ? '#f0fdf4' : '#fef2f2',
+                      color: adminSaveResult.ok ? '#166534' : '#991b1b',
+                      border: `1px solid ${adminSaveResult.ok ? '#bbf7d0' : '#fecaca'}`,
+                    }}>
+                      {adminSaveResult.message}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={S.navRow}>
                 <button style={S.btn('outline')} onClick={goBack}>← {t('setup.back')}</button>
                 <button style={S.btn('primary', !canGoNext())} onClick={goNext} disabled={!canGoNext()}>{t('setup.next')} →</button>
@@ -1164,12 +1716,13 @@ export default function SetupWizard({
                 </div>
               </div>
 
-              {/* DB summary */}
+              {/* DB / NET summary */}
               <div style={S.summaryCard}>
-                <div style={S.summaryTitle}>{t('setup.summary.dbConfig')}</div>
+                <div style={S.summaryTitle}>{setupMode === 'net' ? 'Serveur @mostajs/net' : t('setup.summary.dbConfig')}</div>
                 <div style={S.summaryText}>
                   <span style={{ fontFamily: 'monospace' }}>{dbSummaryLabel()}</span>
-                  {dialect !== 'sqlite' && dbConfig.user && <span style={{ display: 'block', marginTop: 4 }}>Utilisateur: {dbConfig.user}</span>}
+                  {setupMode === 'net' && netTransport && <span style={{ display: 'block', marginTop: 4 }}>Transport: {netTransport}</span>}
+                  {setupMode !== 'net' && dialect !== 'sqlite' && dbConfig.user && <span style={{ display: 'block', marginTop: 4 }}>Utilisateur: {dbConfig.user}</span>}
                 </div>
               </div>
 
@@ -1201,41 +1754,148 @@ export default function SetupWizard({
                 </div>
               </div>
 
-              {/* Seed options */}
+              {/* Seed options — dynamic from setup.json */}
+              {availableSeeds.length > 0 && (
               <div style={S.summaryCard}>
                 <div style={S.summaryTitle}>{t('setup.summary.seedTitle')}</div>
                 <p style={{ ...S.summaryText, marginBottom: 12 }}>{t('setup.summary.seedInfo')}</p>
-                <div style={S.checkRow}>
-                  <input type="checkbox" style={S.checkbox}
-                    checked={seedOptions.activities}
-                    onChange={e => setSeedOptions({ ...seedOptions, activities: e.target.checked, demoData: e.target.checked ? seedOptions.demoData : false })}
-                    disabled={installing || !!installResult?.ok} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t('setup.summary.seedActivities')}</div>
-                    <div style={{ fontSize: 12, color: '#9ca3af' }}>{t('setup.summary.seedActivitiesDesc')}</div>
+                {/* Upload seed file button */}
+                {setupMode === 'net' && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+                    <label style={{
+                      padding: '4px 12px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                      fontSize: 12, fontWeight: 600, backgroundColor: '#3b82f6', color: '#fff',
+                    }}>
+                      Upload seed file (.json)
+                      <input type="file" accept=".json" style={{ display: 'none' }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setSeedStatus(prev => ({ ...prev, _upload: { sending: true } }))
+                          try {
+                            const text = await file.text()
+                            const data = JSON.parse(text)
+                            // Save to server via seed-file endpoint
+                            const res = await fetch(ep.setupJson.replace('setup-json', 'seed-file'), {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ seedFile: file.name, data }),
+                            })
+                            const result = await res.json()
+                            if (result.ok) {
+                              setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: `✅ ${file.name} sauvé (${result.seeds} seeds)`, ok: true } }))
+                              // Reload seed data for individual buttons
+                              setSeedFileData(data)
+                            } else {
+                              setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: result.error, ok: false } }))
+                            }
+                          } catch (err: any) {
+                            setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: err.message, ok: false } }))
+                          }
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
+                    <button style={{
+                      padding: '4px 12px', borderRadius: 4, border: '1px solid #d1d5db', cursor: 'pointer',
+                      fontSize: 12, backgroundColor: '#fff', color: '#374151',
+                    }}
+                      onClick={async () => {
+                        setSeedStatus(prev => ({ ...prev, _upload: { sending: true } }))
+                        try {
+                          const res = await fetch(ep.setupJson.replace('setup-json', 'seed-file'))
+                          const data = await res.json()
+                          if (data.exists) {
+                            setSeedFileData(data.data)
+                            setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: `✅ ${data.seedFile} charge (${data.summary.seeds} seeds)`, ok: true } }))
+                          } else {
+                            setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: 'Aucun fichier seed trouve', ok: false } }))
+                          }
+                        } catch (err: any) {
+                          setSeedStatus(prev => ({ ...prev, _upload: { sending: false, result: err.message, ok: false } }))
+                        }
+                      }}
+                    >
+                      Charger depuis serveur
+                    </button>
+                    {seedStatus._upload?.result && (
+                      <span style={{ fontSize: 11, color: seedStatus._upload.ok ? '#059669' : '#dc2626' }}>
+                        {seedStatus._upload.result}
+                      </span>
+                    )}
                   </div>
-                </div>
-                <div style={S.checkRow}>
-                  <input type="checkbox" style={S.checkbox}
-                    checked={seedOptions.demoUsers}
-                    onChange={e => setSeedOptions({ ...seedOptions, demoUsers: e.target.checked })}
-                    disabled={installing || !!installResult?.ok} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t('setup.summary.seedDemoUsers')}</div>
-                    <div style={{ fontSize: 12, color: '#9ca3af' }}>{t('setup.summary.seedDemoUsersDesc')}</div>
+                )}
+
+                {availableSeeds.map(seed => (
+                  <div key={seed.key} style={{ ...S.checkRow, alignItems: 'center' }}>
+                    <input type="checkbox" style={S.checkbox}
+                      checked={seedOptions[seed.key] ?? false}
+                      onChange={e => setSeedOptions({ ...seedOptions, [seed.key]: e.target.checked })}
+                      disabled={installing || !!installResult?.ok} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{seed.label}</div>
+                      <div style={{ fontSize: 12, color: '#9ca3af' }}>{seed.description}</div>
+                    </div>
+                    {setupMode === 'net' && seedFileData && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          style={{
+                            padding: '3px 10px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                            fontSize: 12, fontWeight: 600,
+                            backgroundColor: seedStatus[seed.key]?.ok ? '#d1fae5' : '#6366f1',
+                            color: seedStatus[seed.key]?.ok ? '#065f46' : '#fff',
+                            opacity: seedStatus[seed.key]?.sending ? 0.6 : 1,
+                          }}
+                          disabled={seedStatus[seed.key]?.sending || !netUrl}
+                          onClick={async () => {
+                            setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: true } }))
+                            try {
+                              const seedDef = (seedFileData.seeds || []).find((s: any) => s.key === seed.key)
+                              if (!seedDef) {
+                                setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: 'Seed "' + seed.key + '" non trouve dans le fichier', ok: false } }))
+                                return
+                              }
+                              // Clone seed def and inject wizard admin if this is a user seed
+                              const seedToSend = { ...seedDef, data: [...(seedDef.data || [])] }
+                              if (seedDef.collection === 'user' && adminConfig.email) {
+                                const adminExists = seedToSend.data.some((u: any) => u.email === adminConfig.email)
+                                if (!adminExists) {
+                                  seedToSend.data.unshift({
+                                    email: adminConfig.email,
+                                    password: adminConfig.password,
+                                    firstName: adminConfig.firstName,
+                                    lastName: adminConfig.lastName || '',
+                                    role: 'admin',
+                                  })
+                                }
+                              }
+                              const payload: any = { seeds: [seedToSend] }
+                              if (seedFileData.rbac) payload.rbac = seedFileData.rbac
+                              const res = await fetch(netUrl + '/api/seed-file', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload),
+                              })
+                              const data = await res.json()
+                              setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: data.ok ? data.message : (data.error || 'Erreur'), ok: data.ok } }))
+                            } catch (err: any) {
+                              setSeedStatus(prev => ({ ...prev, [seed.key]: { sending: false, result: err.message, ok: false } }))
+                            }
+                          }}
+                        >
+                          {seedStatus[seed.key]?.sending ? '...' : seedStatus[seed.key]?.ok ? '✓' : 'Envoyer'}
+                        </button>
+                        {seedStatus[seed.key]?.result && (
+                          <span style={{ fontSize: 11, color: seedStatus[seed.key]?.ok ? '#059669' : '#dc2626', maxWidth: 200, display: 'inline-block' }}>
+                            {seedStatus[seed.key]?.result}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div style={S.checkRow}>
-                  <input type="checkbox" style={S.checkbox}
-                    checked={seedOptions.demoData}
-                    onChange={e => setSeedOptions({ ...seedOptions, demoData: e.target.checked, activities: e.target.checked ? true : seedOptions.activities })}
-                    disabled={installing || !!installResult?.ok} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t('setup.summary.seedDemoData')}</div>
-                    <div style={{ fontSize: 12, color: '#9ca3af' }}>{t('setup.summary.seedDemoDataDesc')}</div>
-                  </div>
-                </div>
+                ))}
               </div>
+              )}
 
               {/* Install result */}
               {installResult && (

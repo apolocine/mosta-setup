@@ -380,7 +380,7 @@ export function createUploadJarHandlers() {
         return Response.json({ ok: false, error: 'dialect requis' }, { status: 400 })
       }
 
-      const { composeDbUri } = await import('../lib/compose-uri.js')
+      const { composeDbUri } = await import('../lib/compose-uri')
       const uri = composeDbUri(dialect, {
         host: host || 'localhost',
         port: port || 0,

@@ -1,6 +1,6 @@
 {
   "name": "@mostajs/setup",
-  "version": "1.4.12",
+  "version": "2.2.1",
   "description": "Reusable setup wizard module — multi-dialect DB configuration, .env.local writer, seed runner",
   "author": "Dr Hamid MADANI <drmdh@msn.com>",
   "license": "MIT",
@@ -18,6 +18,16 @@
       "import": "./dist/lib/*.js",
       "default": "./dist/lib/*.js"
     },
+    "./lib/cloud-mode": {
+      "types": "./dist/lib/cloud-mode.d.ts",
+      "import": "./dist/lib/cloud-mode.js",
+      "default": "./dist/lib/cloud-mode.js"
+    },
+    "./lib/cloud-modules-discovery": {
+      "types": "./dist/lib/cloud-modules-discovery.d.ts",
+      "import": "./dist/lib/cloud-modules-discovery.js",
+      "default": "./dist/lib/cloud-modules-discovery.js"
+    },
     "./data/*": {
       "types": "./dist/data/*.d.ts",
       "import": "./dist/data/*.js",
@@ -33,11 +43,6 @@
       "import": "./dist/types/index.js",
       "default": "./dist/types/index.js"
     },
-    "./lib/menu": {
-      "types": "./dist/lib/menu.d.ts",
-      "import": "./dist/lib/menu.js",
-      "default": "./dist/lib/menu.js"
-    },
     "./components/ReconfigPanel": {
       "types": "./dist/components/ReconfigPanel.d.ts",
       "import": "./dist/components/ReconfigPanel.js",
@@ -47,6 +52,11 @@
       "types": "./dist/components/SetupWizard.d.ts",
       "import": "./dist/components/SetupWizard.js",
       "default": "./dist/components/SetupWizard.js"
+    },
+    "./api/routes": {
+      "types": "./dist/api/routes.d.ts",
+      "import": "./dist/api/routes.js",
+      "default": "./dist/api/routes.js"
     },
     "./api/reconfig": {
       "types": "./dist/api/reconfig.route.d.ts",
@@ -62,10 +72,19 @@
       "types": "./dist/api/wire-module.route.d.ts",
       "import": "./dist/api/wire-module.route.js",
       "default": "./dist/api/wire-module.route.js"
-    }
+    },
+    "./register": {
+      "types": "./dist/register.d.ts",
+      "import": "./dist/register.js",
+      "default": "./dist/register.js"
+    },
+    "./schemas/*": "./schemas/*"
   },
   "files": [
     "dist",
+    "schemas",
+    "cli",
+    "wire.json",
     "setup.wire.json",
     "LICENSE",
     "README.md"
@@ -87,16 +106,26 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "bin": {
+    "mosta-setup": "./dist/cli/init.js"
+  },
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test:cloud": "tsx test-scripts/test-cloud.ts"
   },
   "dependencies": {
-    "@mostajs/orm": "^1.4.1",
+    "@mostajs/audit": "^2.0.2",
+    "@mostajs/net": "^2.0.0",
+    "@mostajs/octoswitcher": "^1.0.0",
+    "@mostajs/orm": "^1.7.0",
+    "@mostajs/rbac": "^2.0.3",
+    "@mostajs/settings": "^2.0.3",
     "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
     "@mostajs/menu": "^1.0.2",
+    "@mostajs/socle": "^2.0.0",
     "@types/bcryptjs": "^2.4.0",
     "@types/node": "^25.3.3",
     "@types/react": "^19.2.14",
@@ -104,7 +133,7 @@
   },
   "peerDependencies": {
     "@mostajs/menu": ">=1.0.2",
-    "@mostajs/socle": ">=1.0.0",
+    "@mostajs/socle": ">=2.0.0",
     "react": ">=18.0.0"
   },
   "peerDependenciesMeta": {
@@ -117,5 +146,9 @@
     "react": {
       "optional": true
     }
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/apolocine"
   }
 }

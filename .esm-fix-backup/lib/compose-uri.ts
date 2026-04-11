@@ -1,6 +1,6 @@
 // @mosta/setup — Compose DB connection URI for all 13 dialects
 // Author: Dr Hamid MADANI drmdh@msn.com
-import type { DialectType, DbConfig } from '../types/index.js'
+import type { DialectType, DbConfig } from '../types/index'
 
 /**
  * Compose a database connection URI from individual fields.
