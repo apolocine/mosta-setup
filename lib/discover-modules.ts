@@ -4,7 +4,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
-import { MODULES, type ModuleDefinition } from '../data/module-definitions'
+import { MODULES, type ModuleDefinition } from '../data/module-definitions.js'
 
 const execAsync = promisify(exec)
 

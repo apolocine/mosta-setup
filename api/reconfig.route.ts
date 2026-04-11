@@ -1,10 +1,10 @@
 // @mostajs/setup — API Route factory for reconfiguration
 // Author: Dr Hamid MADANI drmdh@msn.com
 
-import { testDbConnection } from '../lib/db-test'
-import { writeEnvLocal } from '../lib/env-writer'
-import { composeDbUri } from '../lib/compose-uri'
-import type { DialectType, DbConfig } from '../types/index'
+import { testDbConnection } from '../lib/db-test.js'
+import { writeEnvLocal } from '../lib/env-writer.js'
+import { composeDbUri } from '../lib/compose-uri.js'
+import type { DialectType, DbConfig } from '../types/index.js'
 
 export interface ReconfigHandlerConfig {
   /** Callback to get current env values */

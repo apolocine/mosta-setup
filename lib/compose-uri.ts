@@ -1,6 +1,6 @@
 // @mosta/setup — Compose DB connection URI for all 13 dialects
 // Author: Dr Hamid MADANI drmdh@msn.com
-import type { DialectType, DbConfig } from '../types/index'
+import type { DialectType, DbConfig } from '../types/index.js'
 
 /**
  * Compose a database connection URI from individual fields.
@@ -12,7 +12,7 @@ export function composeDbUri(dialect: DialectType, config: DbConfig): string {
 
   switch (dialect) {
     case 'mongodb':
-      if (user && password) return `mongodb://${eu}:${ep}@${host}:${port}/${name}`
+      if (user && password) return `mongodb://${eu}:${ep}@${host}:${port}/${name}?authSource=admin`
       return `mongodb://${host}:${port}/${name}`
     case 'sqlite':
       return `./data/${name}.db`

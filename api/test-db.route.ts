@@ -3,8 +3,8 @@
 //
 // Copy to: src/app/api/setup/test-db/route.ts
 
-import { testDbConnection } from '../lib/db-test'
-import type { DialectType } from '../types/index'
+import { testDbConnection } from '../lib/db-test.js'
+import type { DialectType } from '../types/index.js'
 
 type NeedsSetupFn = () => Promise<boolean>
 

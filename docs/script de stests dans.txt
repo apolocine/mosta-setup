@@ -1,0 +1,20 @@
+script de stests dans le repertoire des test 
+
+
+  const KNOWN: Record<string, { label: string; description: string; icon: string; required?: boolean; dependsOn?: string[] }> = {            
+ 621 +        orm:       { label: 'ORM', description: 'Acces aux donnees multi-dialecte', icon: '🗄️ ', required: true },                                
+ 622 +        auth:      { label: 'Authentification', description: 'NextAuth, sessions', icon: '🔐', required: true, dependsOn: ['orm'] },             
+ 623 +        audit:     { label: 'Audit & Logs', description: 'Journalisation des actions', icon: '📋', dependsOn: ['orm'] },                         
+ 624 +        rbac:      { label: 'Roles & Permissions', description: 'Gestion RBAC, matrice', icon: '🛡️ ', dependsOn: ['auth', 'audit'] },             
+ 625 +        settings:  { label: 'Parametres', description: 'Cle-valeur, formulaire auto', icon: '⚙️ ', dependsOn: ['orm'] },                          
+ 626 +        setup:     { label: 'Setup Wizard', description: 'Installation, test DB, seeds', icon: '🧙', required: true, dependsOn: ['orm'] },       
+ 627 +        face:      { label: 'Reconnaissance faciale', description: 'Detection visage, matching 1:N', icon: '👤' },                               
+ 628 +        init:      { label: 'Init & Bootstrap', description: 'Chargement auto des modules', icon: '🚀', dependsOn: ['orm'] },                    
+ 629 +        ui:        { label: 'Composants UI', description: 'Composants React reutilisables', icon: '🎨' },                                        
+ 630 +        menu:      { label: 'Menu dynamique', description: 'Sidebar et navigation', icon: '📑', dependsOn: ['orm'] },                            
+ 631 +        ticketing: { label: 'Ticketing', description: 'Gestion des tickets', icon: '🎫', dependsOn: ['orm'] },                                   
+ 632 +        media:     { label: 'Media', description: 'Upload et fichiers', icon: '📷', dependsOn: ['orm'] },                                        
+ 633 +        scan:      { label: 'Scan QR/RFID', description: 'QR codes et cartes RFID', icon: '📱', dependsOn: ['orm'] },                            
+ 634 +      }        
+ 
+ 

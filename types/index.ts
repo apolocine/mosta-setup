@@ -25,15 +25,28 @@ export interface DbConfig {
   password: string
 }
 
+export type SetupMode = 'orm' | 'net'
+
+export interface NetConfig {
+  url: string
+  transport: 'rest' | 'graphql' | 'jsonrpc' | 'ws'
+  apiKey?: string
+}
+
 export interface InstallConfig {
+  mode?: SetupMode
+  // Mode ORM (direct DB access)
   dialect: DialectType
   db: DbConfig
+  // Mode NET (remote @mostajs/net server)
+  net?: NetConfig
+  // Common
   admin: { email: string; password: string; firstName: string; lastName: string }
   seed?: SeedOptions
   modules?: string[]
 }
 
-export type { ModuleDefinition } from '../data/module-definitions'
+export type { ModuleDefinition } from '../data/module-definitions.js'
 
 export interface SeedOptions {
   [key: string]: boolean
@@ -57,8 +70,10 @@ export interface MostaSetupConfig {
   seedRBAC?: () => Promise<void>
   /** Create first admin user — called with hashed password */
   createAdmin?: (admin: { email: string; hashedPassword: string; firstName: string; lastName: string }) => Promise<void>
-  /** Optional seeds shown in the wizard */
+  /** Optional seeds shown in the wizard (legacy — prefer runModuleSeeds) */
   optionalSeeds?: SeedDefinition[]
+  /** Run seeds from the module registry (Phase 4 runtime) */
+  runModuleSeeds?: (modules?: string[]) => Promise<void>
   /** Extra env vars to write to .env.local */
   extraEnvVars?: Record<string, string>
 }
