@@ -1,0 +1,103 @@
+# @mostajs/setup — fiche LLM
+> Module assistant d'installation réutilisable : configuration DB multi-dialecte, écriture de .env.local, exécution des seeds.
+
+- Version: 2.2.2 · Licence: AGPL-3.0-or-later · Auteur: Dr Hamid MADANI <drmdh@msn.com>
+- Chemin: mostajs/mosta-setup · Statut audit: complet (dist/)
+
+## RÔLE
+Fournit l'assistant d'installation (Setup Wizard) et le panneau de reconfiguration d'une application mostajs. Orchestre la configuration de la base de données (13 dialectes), la création du premier admin, l'amorçage RBAC et l'exécution de seeds. Ne possède pas de schéma propre : il orchestre les seeds des autres modules. Supporte deux modes : ORM (connexion DB directe) et NET (serveur @mostajs/net distant). Peut consommer un manifeste déclaratif `setup.json` (généré par @mostajs/setup-studio ou le CLI).
+
+## INSTALLATION
+```bash
+npm install @mostajs/setup @mostajs/orm
+npx mosta-setup                 # CLI : génère setup.json en mode interactif
+```
+Binaire: `mosta-setup` → `dist/cli/init.js`. Node >= 18.
+CLI: `npx mosta-setup --quick --name MonApp --port 4567 --db monappdb --modules "orm,auth,setup"` (mode non-interactif), `--stdout` pour piper.
+
+## EXPORTS
+- needsSetup, runInstall
+- testDbConnection, composeDbUri, writeEnvLocal
+- DIALECT_INFO, ALL_DIALECTS
+- MODULES, resolveModuleDependencies
+- discoverNpmModules, loadSetupJson
+- createSetupRoutes (route catch-all)
+- NetClient (classe)
+- createTestDbHandler, createInstallHandler, createStatusHandler, createDetectModulesHandler,
+  createInstallModulesHandler, createReconfigHandlers, createUploadJarHandlers,
+  createWireModuleHandler, createSetupJsonHandler, createPreflightHandler, createCreateDbHandler
+- ReconfigPanel, SetupWizard (composants React, default exports)
+- types: DialectType, DialectInfo, DbConfig, InstallConfig, SeedOptions, SeedDefinition,
+  MostaSetupConfig, ModuleDefinition, SetupMode, NetConfig, SetupJson, SetupJsonRbac,
+  SetupJsonSeed, SetupJsonCategory, SetupJsonPermission, SetupJsonRole, SetupRoutesConfig,
+  NetClientConfig, NetHealthResponse, PreflightCheck
+
+## EXPORTS PAR SOUS-CHEMIN
+- `@mostajs/setup/lib/*` — modules lib individuels (setup, db-test, compose-uri, env-writer, discover-modules, load-setup-json, module-registry, net-client, cloud-mode, cloud-modules-discovery)
+- `@mostajs/setup/data/*` — dialects, module-definitions
+- `@mostajs/setup/api/*` — handlers de route individuels
+- `@mostajs/setup/api/routes` — createSetupRoutes (catch-all)
+- `@mostajs/setup/api/reconfig`, `/api/upload-jar`, `/api/wire-module` — handlers ciblés
+- `@mostajs/setup/components/SetupWizard`, `/components/ReconfigPanel`
+- `@mostajs/setup/types` — types publics
+- `@mostajs/setup/register` — fonction register(registry)
+- `@mostajs/setup/schemas/*` — fichiers de schéma bruts
+
+## API — SIGNATURES
+- `needsSetup(countUsers: () => Promise<number>): Promise<boolean>` — vrai si 0 utilisateur
+- `runInstall(installConfig: InstallConfig, setupConfig: MostaSetupConfig): Promise<{ ok, error?, needsRestart, seeded?, jdbcInfo? }>`
+- `testDbConnection({ dialect, createIfNotExists?, ...DbConfig }): Promise<{ ok, error? }>` — délègue à @mostajs/orm
+- `composeDbUri(dialect: DialectType, config: DbConfig): string`
+- `writeEnvLocal(options: EnvWriterOptions): Promise<boolean>` — vrai si dialecte changé (redémarrage requis)
+- `discoverNpmModules(): Promise<{ modules: ModuleDefinition[]; installed: string[] }>`
+- `loadSetupJson(source?: string | SetupJson, repoFactory?): Promise<MostaSetupConfig>`
+- `resolveModuleDependencies(selected: string[], modules?): string[]` — ajoute les deps transitives
+- `createSetupRoutes(config: SetupRoutesConfig): { GET, POST, DELETE, PATCH }` — pour route `[...slug]`
+- `new NetClient(config: NetClientConfig)` — méthodes: loadCollectionMap, health, testDbConnection, getSchemasConfig, applySchema, create, findOne, upsert, count
+- Handlers individuels `createXxxHandler(...)` — fabriques de route Next.js
+
+## TYPES CLÉS
+- `DialectType` = 'mongodb'|'sqlite'|'postgres'|'mysql'|'mariadb'|'oracle'|'mssql'|'cockroachdb'|'db2'|'hana'|'hsqldb'|'spanner'|'sybase'
+- `DbConfig` { host, port, name, user, password }
+- `SetupMode` = 'orm' | 'net' ; `NetConfig` { url, transport: 'rest'|'graphql'|'jsonrpc'|'ws', apiKey? }
+- `InstallConfig` { mode?, dialect, db: DbConfig, net?, admin{email,password,firstName,lastName}, seed?, modules? }
+- `MostaSetupConfig` { appName, defaultPort?, seedRBAC?, createAdmin?(admin avec hashedPassword), optionalSeeds?, runModuleSeeds?, extraEnvVars? }
+- `SetupJson` { $schema?, app{name,port?,dbNamePrefix?}, env?, modules?, rbac?: SetupJsonRbac, seeds?: SetupJsonSeed[] }
+- `SetupJsonSeed` { key, label, collection, match?, hashField?, roleField?, defaults?, lookupFields?, data[] }
+- `SetupRoutesConfig` { needsSetup: () => Promise<boolean>, getSetupConfig: () => Promise<MostaSetupConfig> }
+- `EnvWriterOptions` { dialect?, uri?, extraVars?, port?, skipDb? }
+
+## PATTERN
+Route catch-all de setup (Next.js App Router) :
+```ts
+// src/app/api/setup/[...slug]/route.ts
+import { createSetupRoutes } from '@mostajs/setup'
+export const { GET, POST, DELETE, PATCH } = createSetupRoutes({ needsSetup, getSetupConfig })
+```
+Page wizard et chargement déclaratif :
+```tsx
+// src/app/setup/page.tsx
+import { SetupWizard } from '@mostajs/setup'
+export default function Setup() { return <SetupWizard /> }
+```
+```ts
+import { loadSetupJson, runInstall } from '@mostajs/setup'
+const config = await loadSetupJson('./setup.json', myRepoFactory)
+const result = await runInstall(installConfig, config)
+```
+
+## DÉPEND DE
+runtime: @mostajs/audit (^2.0.2), @mostajs/net (^2.0.0), @mostajs/octoswitcher (^1.0.0), @mostajs/orm (^1.7.0), @mostajs/rbac (^2.0.3), @mostajs/settings (^2.0.3). Peer deps optionnelles: @mostajs/menu, @mostajs/socle, react.
+
+## PIÈGES
+- `createSetupRoutes` couvre 11 slugs (status, test-db, create-db, preflight, detect-modules, install-modules, setup-json, upload-jar, wire-module, reconfig, install) ; à monter sur une route `[...slug]`, pas une route fixe.
+- `runInstall` écrit `.env.local` puis renvoie `needsRestart` : un changement de dialecte exige un redémarrage du process.
+- La création de l'admin est déléguée — fournir `createAdmin` dans `MostaSetupConfig` (reçoit le mot de passe déjà hashé bcrypt).
+- `loadSetupJson` sans `repoFactory` utilise `getRepository()` de @mostajs/orm au runtime : @mostajs/orm doit être présent et configuré.
+- Mode NET vs ORM : en NET, `writeEnvLocal({ skipDb: true })` évite d'écrire DB_DIALECT/SGBD_URI ; les seeds passent par `NetClient` (REST).
+- Le manifeste `register.ts` est en version 2.0.0 alors que le package est en 2.2.2 — la version du package fait foi.
+- `params` des handlers catch-all est une `Promise` (Next.js 15+) : `await params`.
+
+## RÉFÉRENCES
+- README.md (racine du module)
+- docs/, schemas/ (racine du module)

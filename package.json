@@ -87,7 +87,8 @@
     "wire.json",
     "setup.wire.json",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "llms.txt"
   ],
   "keywords": [
     "setup",
